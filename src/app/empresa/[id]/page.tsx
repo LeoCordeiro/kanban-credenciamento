@@ -142,6 +142,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   }
 
   async function handleDeleteAnexo(anexo: Anexo) {
+    setAnexos(prev => prev.filter(a => a.id !== anexo.id))
     const pathMatch = anexo.url.match(/empresas\/(.+)$/)
     if (pathMatch) await supabase.storage.from('empresas').remove([pathMatch[1]])
     await supabase.from('anexos').delete().eq('id', anexo.id)
@@ -183,6 +184,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   }
 
   async function handleDeleteCred(cid: string) {
+    setCredenciais(prev => prev.filter(c => c.id !== cid))
     await supabase.from('credenciais').delete().eq('id', cid)
   }
 
