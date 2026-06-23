@@ -32,10 +32,12 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
     nome_fantasia: empresa?.nome_fantasia ?? '',
     cnpj: empresa?.cnpj ? maskCNPJ(empresa.cnpj) : '',
     cnae_principal: empresa?.cnae_principal ?? '',
+    cnaes_secundarios: empresa?.cnaes_secundarios ?? '',
     nome_completo: empresa?.nome_completo ?? '',
     cpf: empresa?.cpf ? maskCPF(empresa.cpf) : '',
     data_nascimento: empresa?.data_nascimento ?? '',
     endereco: empresa?.endereco ?? '',
+    endereco_empresa: empresa?.endereco_empresa ?? '',
     info_bancarias: empresa?.info_bancarias ?? '',
     emails: empresa?.emails ?? '',
     whatsapp: empresa?.whatsapp ?? '',
@@ -54,12 +56,16 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
       if (!res.ok) { setCnpjStatus('notfound'); return }
       const d = await res.json()
       const endereco = [d.logradouro, d.numero, d.complemento, d.bairro, d.municipio, d.uf, d.cep].filter(Boolean).join(', ')
+      const cnaesSecundarios = d.cnaes_secundarios?.length
+        ? d.cnaes_secundarios.map((c: any) => `${c.codigo} - ${c.descricao}`).join('; ')
+        : ''
       setForm(prev => ({
         ...prev,
         razao_social: d.razao_social || prev.razao_social,
         nome_fantasia: d.nome_fantasia || prev.nome_fantasia,
         cnae_principal: d.cnae_fiscal_descricao ? `${d.cnae_fiscal} - ${d.cnae_fiscal_descricao}` : prev.cnae_principal,
-        endereco: endereco || prev.endereco,
+        cnaes_secundarios: cnaesSecundarios || prev.cnaes_secundarios,
+        endereco_empresa: endereco || prev.endereco_empresa,
         emails: d.email || prev.emails,
         whatsapp: d.ddd_telefone_1 || prev.whatsapp,
       }))
@@ -105,9 +111,11 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
       cpf: form.cpf ? form.cpf.replace(/\D/g, '') : null,
       nome_fantasia: form.nome_fantasia || null,
       cnae_principal: form.cnae_principal || null,
+      cnaes_secundarios: form.cnaes_secundarios || null,
       nome_completo: form.nome_completo || null,
       data_nascimento: form.data_nascimento || null,
       endereco: form.endereco || null,
+      endereco_empresa: form.endereco_empresa || null,
       info_bancarias: form.info_bancarias || null,
       emails: form.emails || null,
       whatsapp: form.whatsapp || null,
@@ -175,6 +183,14 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
               <label className={labelClass}>Atividade / CNAE Principal</label>
               <input value={form.cnae_principal} onChange={e => set('cnae_principal', e.target.value)} className={inputClass} placeholder="CNAE" />
             </div>
+            <div className="col-span-2">
+              <label className={labelClass}>CNAEs Secundários</label>
+              <textarea value={form.cnaes_secundarios} onChange={e => set('cnaes_secundarios', e.target.value)} className={inputClass + ' resize-none'} placeholder="CNAEs secundários (preenchido automaticamente)" rows={2} />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Endereço da Empresa</label>
+              <input value={form.endereco_empresa} onChange={e => set('endereco_empresa', e.target.value)} className={inputClass} placeholder="Endereço da empresa (preenchido automaticamente)" />
+            </div>
           </div>
 
           <div className="border-t border-border pt-4">
@@ -193,8 +209,8 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
                 <input type="date" value={form.data_nascimento} onChange={e => set('data_nascimento', e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Endereço</label>
-                <input value={form.endereco} onChange={e => set('endereco', e.target.value)} className={inputClass} placeholder="Endereço completo" />
+                <label className={labelClass}>Endereço de Contato</label>
+                <input value={form.endereco} onChange={e => set('endereco', e.target.value)} className={inputClass} placeholder="Endereço do responsável" />
               </div>
             </div>
           </div>

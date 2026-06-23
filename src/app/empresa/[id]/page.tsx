@@ -35,11 +35,27 @@ function timeAgo(date: string) {
   return `${d}d atrás`
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function getLuminance(hex: string) {
+  const n = parseInt(hex.slice(1), 16)
+  const r = (n >> 16) / 255
+  const g = ((n >> 8) & 0xff) / 255
+  const b = (n & 0xff) / 255
+  const [rs, gs, bs] = [r, g, b].map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs
+}
+
+function Field({ label, children, copyValue }: { label: string; children: React.ReactNode; copyValue?: string }) {
   return (
     <div>
       <p className="text-sm text-text-muted mb-1">{label}</p>
-      <div className="text-base text-text">{children || <span className="text-text-muted">—</span>}</div>
+      <div className="flex items-center gap-2">
+        <div className="text-base text-text-primary flex-1 min-w-0">{children || <span className="text-text-muted">—</span>}</div>
+        {copyValue && (
+          <button onClick={() => navigator.clipboard.writeText(copyValue)} className="p-1 text-text-muted hover:text-text-secondary transition-colors shrink-0" title="Copiar">
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -139,6 +155,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   }
 
   async function handleDeleteComentario(cid: string) {
+    setComentarios(prev => prev.filter(c => c.id !== cid))
     await supabase.from('comentarios').delete().eq('id', cid)
   }
 
@@ -192,11 +209,14 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   if (!empresa) return <div className="min-h-screen flex items-center justify-center text-white/70" style={{ backgroundColor: bgColor }}>Carregando...</div>
 
   const coluna = COLUNAS.find(c => c.id === empresa.coluna)
+  const isLightBg = getLuminance(bgColor) > 0.35
+  const headerText = isLightBg ? '#172b4d' : '#ffffff'
+  const headerSub = isLightBg ? '#5e6c84' : 'rgba(255,255,255,0.7)'
 
   return (
     <div className="min-h-screen text-text-primary" style={{ backgroundColor: bgColor }}>
       <header className="px-6 py-4" style={{ backgroundColor: darken(bgColor) + '99' }}>
-        <Link href="/" className="inline-flex items-center gap-2 text-base text-white/70 hover:text-white transition-colors">
+        <Link href="/" className="inline-flex items-center gap-2 text-base transition-colors" style={{ color: headerSub }} onMouseEnter={e => e.currentTarget.style.color = headerText} onMouseLeave={e => e.currentTarget.style.color = headerSub}>
           <ArrowLeft className="w-5 h-5" /> Voltar ao board
         </Link>
       </header>
@@ -218,10 +238,10 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
             <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
           </button>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold">{empresa.razao_social}</h1>
-            {empresa.nome_fantasia && <p className="text-lg text-text-secondary mt-1">{empresa.nome_fantasia}</p>}
+            <h1 className="text-3xl font-bold" style={{ color: headerText }}>{empresa.razao_social}</h1>
+            {empresa.nome_fantasia && <p className="text-lg mt-1" style={{ color: headerSub }}>{empresa.nome_fantasia}</p>}
             <div className="flex items-center gap-4 mt-3">
-              <span className="text-sm font-mono text-text-secondary">{formatCNPJ(empresa.cnpj)}</span>
+              <span className="text-sm font-mono" style={{ color: headerSub }}>{formatCNPJ(empresa.cnpj)}</span>
               {coluna && (
                 <span className="text-sm px-3 py-1 rounded-full font-medium" style={{ backgroundColor: coluna.cor + '20', color: coluna.cor }}>
                   {coluna.nome}
@@ -234,25 +254,29 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
         {/* Linha 1: Dados da Empresa | Responsável */}
         <div className="grid grid-cols-2 gap-8 mb-8">
           <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text mb-5">Dados da Empresa</h2>
+            <h2 className="text-lg font-semibold text-text-primary mb-5">Dados da Empresa</h2>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Razão Social">{empresa.razao_social}</Field>
+              <Field label="Razão Social" copyValue={empresa.razao_social}>{empresa.razao_social}</Field>
               <Field label="Nome Fantasia">{empresa.nome_fantasia}</Field>
-              <Field label="CNPJ">{formatCNPJ(empresa.cnpj)}</Field>
+              <Field label="CNPJ" copyValue={empresa.cnpj}>{formatCNPJ(empresa.cnpj)}</Field>
               <Field label="CNAE Principal">{empresa.cnae_principal}</Field>
-              <Field label="Endereço">{empresa.endereco}</Field>
+              <div className="col-span-2">
+                <Field label="CNAEs Secundários">{empresa.cnaes_secundarios}</Field>
+              </div>
+              <Field label="Endereço da Empresa">{empresa.endereco_empresa}</Field>
               <Field label="Info Bancárias">{empresa.info_bancarias}</Field>
             </div>
           </section>
 
           <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text mb-5">Responsável</h2>
+            <h2 className="text-lg font-semibold text-text-primary mb-5">Responsável</h2>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Nome Completo">{empresa.nome_completo}</Field>
-              <Field label="CPF">{empresa.cpf ? formatCPF(empresa.cpf) : null}</Field>
-              <Field label="Data de Nascimento">
+              <Field label="Nome Completo" copyValue={empresa.nome_completo ?? undefined}>{empresa.nome_completo}</Field>
+              <Field label="CPF" copyValue={empresa.cpf ?? undefined}>{empresa.cpf ? formatCPF(empresa.cpf) : null}</Field>
+              <Field label="Data de Nascimento" copyValue={empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : undefined}>
                 {empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : null}
               </Field>
+              <Field label="Endereço de Contato">{empresa.endereco}</Field>
             </div>
           </section>
         </div>
@@ -260,23 +284,23 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
         {/* Linha 2: Contato | Credenciais */}
         <div className="grid grid-cols-2 gap-8 mb-8">
           <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text mb-5">Contato</h2>
+            <h2 className="text-lg font-semibold text-text-primary mb-5">Contato</h2>
             <div className="space-y-5">
-              <Field label="E-mails">
+              <Field label="E-mails" copyValue={empresa.emails ?? undefined}>
                 {empresa.emails ? (
                   <a href={`mailto:${empresa.emails}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
                     <Mail className="w-5 h-5" /> {empresa.emails}
                   </a>
                 ) : null}
               </Field>
-              <Field label="WhatsApp / Telefone">
+              <Field label="WhatsApp / Telefone" copyValue={empresa.whatsapp ?? undefined}>
                 {empresa.whatsapp ? (
                   <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
                     <Phone className="w-5 h-5" /> {empresa.whatsapp}
                   </a>
                 ) : null}
               </Field>
-              <Field label="Site">
+              <Field label="Site" copyValue={empresa.site ?? undefined}>
                 {empresa.site ? (
                   <a href={empresa.site.startsWith('http') ? empresa.site : `https://${empresa.site}`} target="_blank" rel="noopener noreferrer" className="text-btn-primary hover:underline inline-flex items-center gap-2">
                     <Globe className="w-5 h-5" /> {empresa.site}
@@ -288,7 +312,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
           <section className="bg-white border border-border rounded-xl p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-text inline-flex items-center gap-2"><KeyRound className="w-5 h-5" /> Credenciais</h2>
+              <h2 className="text-lg font-semibold text-text-primary inline-flex items-center gap-2"><KeyRound className="w-5 h-5" /> Credenciais</h2>
               <button onClick={() => openCredForm()} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1.5 transition-colors">
                 <Plus className="w-4 h-4" /> Adicionar
               </button>
@@ -300,7 +324,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               {credenciais.map(c => (
                 <div key={c.id} className="group bg-[#f4f5f7] rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-base font-medium text-text">{c.titulo}</span>
+                    <span className="text-base font-medium text-text-primary">{c.titulo}</span>
                     <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openCredForm(c)} className="p-1.5 text-text-muted hover:text-text-secondary transition-colors" title="Editar">
                         <KeyRound className="w-4 h-4" />
@@ -314,7 +338,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                     <div>
                       <p className="text-xs text-text-muted uppercase mb-1">Usuário</p>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-text truncate">{c.usuario}</span>
+                        <span className="text-sm text-text-primary truncate">{c.usuario}</span>
                         <button onClick={() => copiar(c.usuario)} className="p-1 text-text-muted hover:text-text-secondary transition-colors" title="Copiar"><Copy className="w-4 h-4" /></button>
                       </div>
                     </div>
@@ -322,7 +346,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                       <div>
                         <p className="text-xs text-text-muted uppercase mb-1">Senha</p>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-sm text-text font-mono">{senhasVisiveis.has(c.id) ? c.senha : '••••••••'}</span>
+                          <span className="text-sm text-text-primary font-mono">{senhasVisiveis.has(c.id) ? c.senha : '••••••••'}</span>
                           <button onClick={() => toggleSenha(c.id)} className="p-1 text-text-muted hover:text-text-secondary transition-colors">
                             {senhasVisiveis.has(c.id) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
@@ -346,27 +370,27 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-text-muted uppercase mb-1.5">Título *</label>
-                    <input required value={credForm.titulo} onChange={e => setCredForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Ex: Portal do Fornecedor" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <input required value={credForm.titulo} onChange={e => setCredForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Ex: Portal do Fornecedor" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
                   </div>
                   <div>
                     <label className="block text-xs text-text-muted uppercase mb-1.5">URL</label>
-                    <input value={credForm.url} onChange={e => setCredForm(p => ({ ...p, url: e.target.value }))} placeholder="https://site.com/login" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <input value={credForm.url} onChange={e => setCredForm(p => ({ ...p, url: e.target.value }))} placeholder="https://site.com/login" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
                   </div>
                   <div>
                     <label className="block text-xs text-text-muted uppercase mb-1.5">Usuário / E-mail *</label>
-                    <input required value={credForm.usuario} onChange={e => setCredForm(p => ({ ...p, usuario: e.target.value }))} placeholder="usuario@email.com" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <input required value={credForm.usuario} onChange={e => setCredForm(p => ({ ...p, usuario: e.target.value }))} placeholder="usuario@email.com" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
                   </div>
                   <div>
                     <label className="block text-xs text-text-muted uppercase mb-1.5">Senha</label>
-                    <input value={credForm.senha} onChange={e => setCredForm(p => ({ ...p, senha: e.target.value }))} placeholder="••••••••" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <input value={credForm.senha} onChange={e => setCredForm(p => ({ ...p, senha: e.target.value }))} placeholder="••••••••" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs text-text-muted uppercase mb-1.5">Notas</label>
-                    <input value={credForm.notas} onChange={e => setCredForm(p => ({ ...p, notas: e.target.value }))} placeholder="Observações..." className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <input value={credForm.notas} onChange={e => setCredForm(p => ({ ...p, notas: e.target.value }))} placeholder="Observações..." className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">
-                  <button type="button" onClick={() => { setShowCredForm(false); setEditingCred(null) }} className="px-4 py-2 text-sm text-text-secondary hover:text-text">Cancelar</button>
+                  <button type="button" onClick={() => { setShowCredForm(false); setEditingCred(null) }} className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary">Cancelar</button>
                   <button type="submit" className="px-5 py-2 bg-btn-primary text-white rounded-lg text-sm font-medium hover:bg-btn-primary-hover transition-colors">{editingCred ? 'Salvar' : 'Adicionar'}</button>
                 </div>
               </form>
@@ -377,7 +401,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
         {/* Linha 3: Comentários | Anexos */}
         <div className="grid grid-cols-2 gap-8">
           <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text mb-5">Comentários</h2>
+            <h2 className="text-lg font-semibold text-text-primary mb-5">Comentários</h2>
             <div className="space-y-4 mb-5 max-h-96 overflow-y-auto">
               {comentarios.length === 0 && <p className="text-base text-text-muted">Nenhum comentário ainda.</p>}
               {comentarios.map(c => (
@@ -393,7 +417,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                    <p className="text-base text-text mt-1 whitespace-pre-wrap">{c.texto}</p>
+                    <p className="text-base text-text-primary mt-1 whitespace-pre-wrap">{c.texto}</p>
                   </div>
                 </div>
               ))}
@@ -403,7 +427,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                 value={novoComentario}
                 onChange={e => setNovoComentario(e.target.value)}
                 placeholder="Escrever comentário..."
-                className="flex-1 px-4 py-2.5 bg-[#f4f5f7] border border-border rounded-lg text-base text-text placeholder:text-text-muted focus:outline-none focus:border-btn-primary transition-colors"
+                className="flex-1 px-4 py-2.5 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary transition-colors"
               />
               <button type="submit" disabled={!novoComentario.trim()} className="p-2.5 bg-btn-primary text-white rounded-lg hover:bg-btn-primary-hover transition-colors disabled:opacity-30">
                 <Send className="w-5 h-5" />
@@ -413,7 +437,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
           <section className="bg-white border border-border rounded-xl p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-text">Anexos</h2>
+              <h2 className="text-lg font-semibold text-text-primary">Anexos</h2>
               <button onClick={() => fileRef.current?.click()} disabled={uploading} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1.5 transition-colors">
                 <Upload className="w-4 h-4" /> {uploading ? 'Enviando...' : 'Enviar'}
               </button>
@@ -427,7 +451,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                     {a.tipo?.startsWith('image/') ? <ImageIcon className="w-5 h-5 text-text-muted" /> : <FileText className="w-5 h-5 text-text-muted" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-sm text-text hover:text-accent truncate block">{a.nome}</a>
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-sm text-text-primary hover:text-accent truncate block">{a.nome}</a>
                     {a.tamanho && <p className="text-xs text-text-muted">{formatBytes(a.tamanho)}</p>}
                   </div>
                   <button onClick={() => handleDeleteAnexo(a)} className="opacity-0 group-hover:opacity-100 p-1.5 text-text-muted hover:text-red-500 transition-all">

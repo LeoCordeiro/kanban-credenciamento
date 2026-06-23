@@ -8,10 +8,12 @@ export interface Empresa {
   nome_fantasia: string | null
   cnpj: string
   cnae_principal: string | null
+  cnaes_secundarios: string | null
   nome_completo: string | null
   cpf: string | null
   data_nascimento: string | null
   endereco: string | null
+  endereco_empresa: string | null
   info_bancarias: string | null
   emails: string | null
   whatsapp: string | null

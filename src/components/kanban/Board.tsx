@@ -7,18 +7,24 @@ import { Empresa, Plataforma, BoardItem, COLUNAS, ColunaId } from '@/types/kanba
 import { Column } from './Column'
 import { Card } from './Card'
 import { CardForm } from './CardForm'
-import { Search, Plus, X, Pencil, Trash2, Palette } from 'lucide-react'
+import { Search, Plus, X, Pencil, Trash2, Palette, Link2 } from 'lucide-react'
 
 const BG_COLORS = [
-  { id: 'blue', value: '#0079bf', label: 'Azul' },
-  { id: 'green', value: '#519839', label: 'Verde' },
-  { id: 'purple', value: '#89609e', label: 'Roxo' },
-  { id: 'red', value: '#b04632', label: 'Vermelho' },
-  { id: 'orange', value: '#d29034', label: 'Laranja' },
-  { id: 'teal', value: '#00aecc', label: 'Ciano' },
-  { id: 'pink', value: '#cd5a91', label: 'Rosa' },
-  { id: 'navy', value: '#344563', label: 'Marinho' },
-  { id: 'gray', value: '#838c91', label: 'Cinza' },
+  { id: 'blue', value: '#0052CC', label: 'Azul' },
+  { id: 'green', value: '#00875A', label: 'Verde' },
+  { id: 'purple', value: '#6554C0', label: 'Roxo' },
+  { id: 'red', value: '#DE350B', label: 'Vermelho' },
+  { id: 'orange', value: '#FF8B00', label: 'Laranja' },
+  { id: 'teal', value: '#00897B', label: 'Ciano' },
+  { id: 'pink', value: '#E91E63', label: 'Rosa' },
+  { id: 'navy', value: '#0D1B3E', label: 'Marinho' },
+  { id: 'indigo', value: '#4338CA', label: 'Índigo' },
+  { id: 'emerald', value: '#059669', label: 'Esmeralda' },
+  { id: 'crimson', value: '#B91C1C', label: 'Carmesim' },
+  { id: 'slate', value: '#334155', label: 'Ardósia' },
+  { id: 'amber', value: '#D97706', label: 'Âmbar' },
+  { id: 'lime', value: '#65A30D', label: 'Lima' },
+  { id: 'fuchsia', value: '#A21CAF', label: 'Fúcsia' },
 ]
 
 export function Board() {
@@ -36,6 +42,9 @@ export function Board() {
   const [platNome, setPlatNome] = useState('')
   const [bgColor, setBgColor] = useState('#0079bf')
   const [showBgPicker, setShowBgPicker] = useState(false)
+  const [showAddExisting, setShowAddExisting] = useState(false)
+  const [existingEmpresas, setExistingEmpresas] = useState<Empresa[]>([])
+  const [existingSearch, setExistingSearch] = useState('')
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -44,10 +53,24 @@ export function Board() {
     if (saved) setBgColor(saved)
   }, [])
 
-  function changeBgColor(color: string) {
+  useEffect(() => {
+    if (selectedId) {
+      const plat = plataformas.find(p => p.id === selectedId)
+      if (plat?.cor) {
+        setBgColor(plat.cor)
+        localStorage.setItem('kanban-bg-color', plat.cor)
+      }
+    }
+  }, [selectedId, plataformas])
+
+  async function changeBgColor(color: string) {
     setBgColor(color)
     localStorage.setItem('kanban-bg-color', color)
     setShowBgPicker(false)
+    if (selectedId) {
+      setPlataformas(prev => prev.map(p => p.id === selectedId ? { ...p, cor: color } : p))
+      await supabase.from('plataformas').update({ cor: color }).eq('id', selectedId)
+    }
   }
 
   useEffect(() => {
@@ -177,12 +200,38 @@ export function Board() {
     if (editingPlat) {
       await supabase.from('plataformas').update({ nome: platNome.trim() }).eq('id', editingPlat.id)
     } else {
-      const { data } = await supabase.from('plataformas').insert({ nome: platNome.trim() }).select().single()
+      const defaultCor = BG_COLORS[plataformas.length % BG_COLORS.length].value
+      const { data } = await supabase.from('plataformas').insert({ nome: platNome.trim(), cor: defaultCor }).select().single()
       if (data && !selectedId) setSelectedId(data.id)
     }
     setShowPlatForm(false)
     setEditingPlat(null)
     setPlatNome('')
+  }
+
+  async function openAddExisting() {
+    if (!selectedId) return
+    const { data: linked } = await supabase.from('empresa_plataforma').select('empresa_id').eq('plataforma_id', selectedId)
+    const linkedIds = (linked || []).map((l: any) => l.empresa_id)
+    let query = supabase.from('empresas').select('*').order('razao_social')
+    if (linkedIds.length > 0) {
+      query = query.not('id', 'in', `(${linkedIds.join(',')})`)
+    }
+    const { data } = await query
+    setExistingEmpresas(data || [])
+    setExistingSearch('')
+    setShowAddExisting(true)
+  }
+
+  async function handleAddExisting(empresa: Empresa) {
+    if (!selectedId) return
+    await supabase.from('empresa_plataforma').insert({
+      empresa_id: empresa.id,
+      plataforma_id: selectedId,
+      coluna: 'a_analisar' as ColunaId,
+      posicao: items.filter(i => i.coluna === 'a_analisar').length,
+    })
+    setExistingEmpresas(prev => prev.filter(e => e.id !== empresa.id))
   }
 
   async function handleDeletePlat(id: string) {
@@ -256,6 +305,12 @@ export function Board() {
           </button>
 
           <div className="flex-1" />
+
+          {selectedId && (
+            <button onClick={openAddExisting} className="flex items-center gap-1.5 px-3 py-2 text-sm text-white/60 hover:text-white hover:bg-white/15 rounded-lg transition-colors font-medium" title="Vincular empresa existente">
+              <Link2 className="w-4 h-4" /> Vincular
+            </button>
+          )}
 
           <button onClick={() => setShowBgPicker(true)} className="p-2 text-white/50 hover:text-white hover:bg-white/15 rounded-lg transition-colors" title="Cor de fundo">
             <Palette className="w-5 h-5" />
@@ -346,7 +401,7 @@ export function Board() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-5 gap-3">
               {BG_COLORS.map(c => (
                 <button
                   key={c.id}
@@ -357,6 +412,52 @@ export function Board() {
                   <span className="text-xs font-medium text-white/90">{c.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddExisting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAddExisting(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h2 className="text-lg font-semibold text-text-primary">Vincular Empresa Existente</h2>
+              <button onClick={() => setShowAddExisting(false)} className="p-1 text-text-muted hover:text-text-secondary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <input
+                autoFocus
+                value={existingSearch}
+                onChange={e => setExistingSearch(e.target.value)}
+                placeholder="Buscar por nome ou CNPJ..."
+                className="w-full px-4 py-2.5 bg-[#f4f5f7] border border-border rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
+              {existingEmpresas
+                .filter(e =>
+                  !existingSearch ||
+                  e.razao_social.toLowerCase().includes(existingSearch.toLowerCase()) ||
+                  e.cnpj.includes(existingSearch.replace(/\D/g, '')) ||
+                  (e.nome_fantasia && e.nome_fantasia.toLowerCase().includes(existingSearch.toLowerCase()))
+                )
+                .map(e => (
+                  <button
+                    key={e.id}
+                    onClick={() => handleAddExisting(e)}
+                    className="w-full text-left p-3 rounded-lg hover:bg-[#f4f5f7] transition-colors border border-border"
+                  >
+                    <p className="text-sm font-medium text-text-primary">{e.razao_social}</p>
+                    {e.nome_fantasia && <p className="text-xs text-text-secondary">{e.nome_fantasia}</p>}
+                    <p className="text-xs text-text-muted font-mono mt-1">{e.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}</p>
+                  </button>
+                ))
+              }
+              {existingEmpresas.length === 0 && (
+                <p className="text-sm text-text-muted text-center py-8">Todas as empresas já estão vinculadas a esta plataforma.</p>
+              )}
             </div>
           </div>
         </div>
