@@ -8,12 +8,13 @@ import { Plus } from 'lucide-react'
 interface Props {
   coluna: { id: string; nome: string; cor: string }
   items: BoardItem[]
+  plataformaId: string
   onAddCard: () => void
   onEditCard: (empresaId: string) => void
   onRemoveCard: (epId: string) => void
 }
 
-export function Column({ coluna, items, onAddCard, onEditCard, onRemoveCard }: Props) {
+export function Column({ coluna, items, plataformaId, onAddCard, onEditCard, onRemoveCard }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.id })
 
   return (
@@ -38,6 +39,8 @@ export function Column({ coluna, items, onAddCard, onEditCard, onRemoveCard }: P
               key={item.epId}
               empresa={item.empresa}
               dragId={item.epId}
+              plataformaId={plataformaId}
+              hasRedFlag={item.hasRedFlag}
               onEdit={() => onEditCard(item.empresa.id)}
               onRemove={() => onRemoveCard(item.epId)}
             />

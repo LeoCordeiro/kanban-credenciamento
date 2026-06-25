@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Empresa, Anexo, Comentario, Credencial, COLUNAS } from '@/types/kanban'
-import { ArrowLeft, Upload, FileText, Trash2, Send, ImageIcon, Paperclip, Globe, Mail, Phone, KeyRound, Plus, Eye, EyeOff, Copy, ExternalLink } from 'lucide-react'
+import { Empresa, Anexo, Comentario, Credencial, Plataforma, COLUNAS } from '@/types/kanban'
+import { ArrowLeft, Upload, FileText, Trash2, Send, ImageIcon, Paperclip, Globe, Mail, Phone, KeyRound, Plus, Eye, EyeOff, Copy, ExternalLink, Pencil, Flag } from 'lucide-react'
 
 function formatCNPJ(cnpj: string) {
   const d = cnpj.replace(/\D/g, '')
@@ -60,9 +61,14 @@ function Field({ label, children, copyValue }: { label: string; children: React.
   )
 }
 
+export const dynamic = 'force-dynamic'
+
 export default function EmpresaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const searchParams = useSearchParams()
+  const plataformaId = searchParams.get('plataforma')
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
+  const [plataformaNome, setPlataformaNome] = useState<string | null>(null)
   const [anexos, setAnexos] = useState<Anexo[]>([])
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [credenciais, setCredenciais] = useState<Credencial[]>([])
@@ -75,6 +81,8 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   const [bgColor, setBgColor] = useState('#0079bf')
   const fileRef = useRef<HTMLInputElement>(null)
   const logoRef = useRef<HTMLInputElement>(null)
+  const [isEditingContato, setIsEditingContato] = useState(false)
+  const [contatoForm, setContatoForm] = useState({ emails: '', whatsapp: '', site: '' })
 
   useEffect(() => {
     const saved = localStorage.getItem('kanban-bg-color')
@@ -84,10 +92,16 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     supabase.from('empresas').select('*').eq('id', id).single().then(({ data }) => { if (data) setEmpresa(data) })
     supabase.from('anexos').select('*').eq('empresa_id', id).order('created_at', { ascending: false }).then(({ data }) => { if (data) setAnexos(data) })
-    supabase.from('comentarios').select('*').eq('empresa_id', id).order('created_at', { ascending: true }).then(({ data }) => { if (data) setComentarios(data) })
     supabase.from('credenciais').select('*').eq('empresa_id', id).order('created_at', { ascending: false }).then(({ data }) => { if (data) setCredenciais(data) })
 
-    const ch1 = supabase.channel(`empresa-${id}`)
+    if (plataformaId) {
+      supabase.from('plataformas').select('nome').eq('id', plataformaId).single().then(({ data }) => { if (data) setPlataformaNome(data.nome) })
+      supabase.from('comentarios').select('*').eq('empresa_id', id).eq('plataforma_id', plataformaId).order('created_at', { ascending: true }).then(({ data }) => { if (data) setComentarios(data) })
+    } else {
+      setComentarios([])
+    }
+
+    const ch1 = supabase.channel(`empresa-${id}-${plataformaId || 'all'}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empresas', filter: `id=eq.${id}` }, (p) => {
         if (p.eventType === 'UPDATE') setEmpresa(p.new as Empresa)
       })
@@ -104,16 +118,19 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
         if (p.eventType === 'DELETE') setCredenciais(prev => prev.filter(c => c.id !== (p.old as { id: string }).id))
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios', filter: `empresa_id=eq.${id}` }, (p) => {
+        const comment = p.new as Comentario
+        if (plataformaId && comment?.plataforma_id !== plataformaId) return
         if (p.eventType === 'INSERT') setComentarios(prev => {
-          if (prev.some(c => c.id === (p.new as Comentario).id)) return prev
-          return [...prev, p.new as Comentario]
+          if (prev.some(c => c.id === comment.id)) return prev
+          return [...prev, comment]
         })
+        if (p.eventType === 'UPDATE') setComentarios(prev => prev.map(c => c.id === comment.id ? comment : c))
         if (p.eventType === 'DELETE') setComentarios(prev => prev.filter(c => c.id !== (p.old as { id: string }).id))
       })
       .subscribe()
 
     return () => { supabase.removeChannel(ch1) }
-  }, [id])
+  }, [id, plataformaId])
 
   async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -150,14 +167,31 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
   async function handleEnviarComentario(e: React.FormEvent) {
     e.preventDefault()
-    if (!novoComentario.trim()) return
-    await supabase.from('comentarios').insert({ empresa_id: id, texto: novoComentario.trim() })
+    if (!novoComentario.trim() || !plataformaId) return
+    await supabase.from('comentarios').insert({ empresa_id: id, texto: novoComentario.trim(), plataforma_id: plataformaId })
     setNovoComentario('')
+  }
+
+  async function syncRedFlag(updatedComments: Comentario[]) {
+    const hasAnyFlag = updatedComments.some(c => c.red_flag)
+    if (plataformaId) {
+      await supabase.from('empresa_plataforma').update({ has_red_flag: hasAnyFlag }).eq('empresa_id', id).eq('plataforma_id', plataformaId)
+    }
   }
 
   async function handleDeleteComentario(cid: string) {
     setComentarios(prev => prev.filter(c => c.id !== cid))
     await supabase.from('comentarios').delete().eq('id', cid)
+    const remaining = comentarios.filter(c => c.id !== cid)
+    await syncRedFlag(remaining)
+  }
+
+  async function handleToggleRedFlag(comentario: Comentario) {
+    const newValue = !comentario.red_flag
+    setComentarios(prev => prev.map(c => c.id === comentario.id ? { ...c, red_flag: newValue } : c))
+    await supabase.from('comentarios').update({ red_flag: newValue }).eq('id', comentario.id)
+    const updatedList = comentarios.map(c => c.id === comentario.id ? { ...c, red_flag: newValue } : c)
+    await syncRedFlag(updatedList)
   }
 
   function openCredForm(cred?: Credencial) {
@@ -198,6 +232,33 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
   function copiar(texto: string) {
     navigator.clipboard.writeText(texto)
+  }
+
+  function startEditContato() {
+    if (!empresa) return
+    setContatoForm({
+      emails: empresa.emails || '',
+      whatsapp: empresa.whatsapp || '',
+      site: empresa.site || '',
+    })
+    setIsEditingContato(true)
+  }
+
+  async function handleSaveContato() {
+    if (!empresa) return
+    const payload = {
+      emails: contatoForm.emails.trim() || null,
+      whatsapp: contatoForm.whatsapp.trim() || null,
+      site: contatoForm.site.trim() || null,
+    }
+    const { error } = await supabase.from('empresas').update(payload).eq('id', id)
+    if (error) {
+      console.error('Erro ao atualizar contatos:', error)
+      alert('Erro ao atualizar contatos: ' + error.message)
+    } else {
+      setEmpresa(prev => prev ? { ...prev, ...payload } : prev)
+      setIsEditingContato(false)
+    }
   }
 
   const darken = (hex: string) => {
@@ -285,32 +346,78 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
         {/* Linha 2: Contato | Credenciais */}
         <div className="grid grid-cols-2 gap-8 mb-8">
-          <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-5">Contato</h2>
-            <div className="space-y-5">
-              <Field label="E-mails" copyValue={empresa.emails ?? undefined}>
-                {empresa.emails ? (
-                  <a href={`mailto:${empresa.emails}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
-                    <Mail className="w-5 h-5" /> {empresa.emails}
-                  </a>
-                ) : null}
-              </Field>
-              <Field label="WhatsApp / Telefone" copyValue={empresa.whatsapp ?? undefined}>
-                {empresa.whatsapp ? (
-                  <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
-                    <Phone className="w-5 h-5" /> {empresa.whatsapp}
-                  </a>
-                ) : null}
-              </Field>
-              <Field label="Site" copyValue={empresa.site ?? undefined}>
-                {empresa.site ? (
-                  <a href={empresa.site.startsWith('http') ? empresa.site : `https://${empresa.site}`} target="_blank" rel="noopener noreferrer" className="text-btn-primary hover:underline inline-flex items-center gap-2">
-                    <Globe className="w-5 h-5" /> {empresa.site}
-                  </a>
-                ) : null}
-              </Field>
-            </div>
-          </section>
+          {isEditingContato ? (
+            <section className="bg-white border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-semibold text-text-primary">Contato</h2>
+                <div className="flex gap-2">
+                  <button onClick={handleSaveContato} className="text-sm text-btn-primary hover:underline font-medium">Salvar</button>
+                  <button onClick={() => setIsEditingContato(false)} className="text-sm text-text-muted hover:text-text-secondary">Cancelar</button>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">E-mails</label>
+                  <input
+                    value={contatoForm.emails}
+                    onChange={e => setContatoForm(p => ({ ...p, emails: e.target.value }))}
+                    placeholder="email@empresa.com"
+                    className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">WhatsApp / Telefone</label>
+                  <input
+                    value={contatoForm.whatsapp}
+                    onChange={e => setContatoForm(p => ({ ...p, whatsapp: e.target.value }))}
+                    placeholder="(00) 00000-0000"
+                    className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Site</label>
+                  <input
+                    value={contatoForm.site}
+                    onChange={e => setContatoForm(p => ({ ...p, site: e.target.value }))}
+                    placeholder="https://empresa.com"
+                    className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                  />
+                </div>
+              </div>
+            </section>
+          ) : (
+            <section className="bg-white border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-semibold text-text-primary">Contato</h2>
+                <button onClick={startEditContato} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1 transition-colors">
+                  <Pencil className="w-4 h-4" /> Editar
+                </button>
+              </div>
+              <div className="space-y-5">
+                <Field label="E-mails" copyValue={empresa.emails ?? undefined}>
+                  {empresa.emails ? (
+                    <a href={`mailto:${empresa.emails}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
+                      <Mail className="w-5 h-5" /> {empresa.emails}
+                    </a>
+                  ) : null}
+                </Field>
+                <Field label="WhatsApp / Telefone" copyValue={empresa.whatsapp ?? undefined}>
+                  {empresa.whatsapp ? (
+                    <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
+                      <Phone className="w-5 h-5" /> {empresa.whatsapp}
+                    </a>
+                  ) : null}
+                </Field>
+                <Field label="Site" copyValue={empresa.site ?? undefined}>
+                  {empresa.site ? (
+                    <a href={empresa.site.startsWith('http') ? empresa.site : `https://${empresa.site}`} target="_blank" rel="noopener noreferrer" className="text-btn-primary hover:underline inline-flex items-center gap-2">
+                      <Globe className="w-5 h-5" /> {empresa.site}
+                    </a>
+                  ) : null}
+                </Field>
+              </div>
+            </section>
+          )}
 
           <section className="bg-white border border-border rounded-xl p-6">
             <div className="flex items-center justify-between mb-5">
@@ -403,21 +510,45 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
         {/* Linha 3: Comentários | Anexos */}
         <div className="grid grid-cols-2 gap-8">
           <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-5">Comentários</h2>
+            <h2 className="text-lg font-semibold text-text-primary mb-5">
+              Comentários{plataformaNome && <span className="text-sm font-normal text-text-muted ml-2">— {plataformaNome}</span>}
+            </h2>
+            {!plataformaId ? (
+              <p className="text-base text-text-muted">Acesse a empresa pelo board de uma plataforma para ver e adicionar comentários.</p>
+            ) : (<>
             <div className="space-y-4 mb-5 max-h-96 overflow-y-auto">
               {comentarios.length === 0 && <p className="text-base text-text-muted">Nenhum comentário ainda.</p>}
               {comentarios.map(c => (
-                <div key={c.id} className="group flex gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#f4f5f7] flex items-center justify-center text-sm font-bold text-text-muted shrink-0 mt-0.5">
+                <div key={c.id} className={`group flex gap-3 rounded-lg p-2 -mx-2 transition-colors ${c.red_flag ? 'bg-red-50 border border-red-200' : ''}`}>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 mt-0.5 ${c.red_flag ? 'bg-red-100 text-red-600' : 'bg-[#f4f5f7] text-text-muted'}`}>
                     {c.autor[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-text-secondary">{c.autor}</span>
                       <span className="text-sm text-text-muted">{timeAgo(c.created_at)}</span>
-                      <button onClick={() => handleDeleteComentario(c.id)} className="ml-auto opacity-0 group-hover:opacity-100 p-1 text-text-muted hover:text-red-500 transition-all">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {c.red_flag && (
+                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-red-600 uppercase tracking-wide">
+                          <Flag className="w-2.5 h-2.5 fill-red-500" />
+                          Red Flag
+                        </span>
+                      )}
+                      <div className="ml-auto flex items-center gap-1">
+                        <button
+                          onClick={() => handleToggleRedFlag(c)}
+                          title={c.red_flag ? 'Remover red flag' : 'Marcar como red flag'}
+                          className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-all ${
+                            c.red_flag
+                              ? 'text-red-500 hover:text-red-700 opacity-100'
+                              : 'text-text-muted hover:text-red-500'
+                          }`}
+                        >
+                          <Flag className={`w-4 h-4 ${c.red_flag ? 'fill-red-500' : ''}`} />
+                        </button>
+                        <button onClick={() => handleDeleteComentario(c.id)} className="opacity-0 group-hover:opacity-100 p-1 text-text-muted hover:text-red-500 transition-all">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                     <p className="text-base text-text-primary mt-1 whitespace-pre-wrap">{c.texto}</p>
                   </div>
@@ -435,6 +566,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                 <Send className="w-5 h-5" />
               </button>
             </form>
+            </>)}
           </section>
 
           <section className="bg-white border border-border rounded-xl p-6">

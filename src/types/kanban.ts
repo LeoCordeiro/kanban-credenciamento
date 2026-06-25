@@ -36,8 +36,10 @@ export interface Anexo {
 export interface Comentario {
   id: string
   empresa_id: string
+  plataforma_id: string
   texto: string
   autor: string
+  red_flag?: boolean
   created_at: string
 }
 
@@ -65,6 +67,7 @@ export interface EmpresaPlataforma {
   plataforma_id: string
   coluna: ColunaId
   posicao: number
+  has_red_flag?: boolean
   created_at: string
 }
 
@@ -72,6 +75,8 @@ export interface BoardItem {
   epId: string
   empresa: Empresa
   coluna: ColunaId
+  plataformaId: string
+  hasRedFlag?: boolean
 }
 
 export const COLUNAS: { id: ColunaId; nome: string; cor: string }[] = [

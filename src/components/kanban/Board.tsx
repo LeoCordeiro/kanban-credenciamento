@@ -101,12 +101,12 @@ export function Board() {
 
     supabase
       .from('empresa_plataforma')
-      .select('id, coluna, posicao, empresa_id, empresas(*)')
+      .select('id, coluna, posicao, has_red_flag, empresa_id, empresas(*)')
       .eq('plataforma_id', selectedId)
       .order('posicao')
       .then(({ data }) => {
         if (data) {
-          setItems(data.map((d: any) => ({ epId: d.id, empresa: d.empresas as Empresa, coluna: d.coluna as ColunaId })))
+          setItems(data.map((d: any) => ({ epId: d.id, empresa: d.empresas as Empresa, coluna: d.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: d.has_red_flag })))
         }
       })
 
@@ -118,7 +118,7 @@ export function Board() {
           const rec = p.new as any
           const { data: emp } = await supabase.from('empresas').select('*').eq('id', rec.empresa_id).single()
           if (!emp) return
-          const item: BoardItem = { epId: rec.id, empresa: emp, coluna: rec.coluna as ColunaId }
+          const item: BoardItem = { epId: rec.id, empresa: emp, coluna: rec.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: rec.has_red_flag }
           if (p.eventType === 'INSERT') {
             setItems(prev => prev.some(i => i.epId === rec.id) ? prev : [...prev, item])
           } else {
@@ -168,30 +168,39 @@ export function Board() {
   }, [])
 
   const handleSave = useCallback(async (data: Partial<Empresa>) => {
-    if (editingEmpresa) {
-      await supabase.from('empresas').update({ ...data, updated_at: new Date().toISOString() }).eq('id', editingEmpresa.id)
-    } else if (selectedId) {
-      let empresaId: string
-      const { data: existing } = await supabase.from('empresas').select('id').eq('cnpj', data.cnpj!).single()
-      if (existing) {
-        empresaId = existing.id
-        await supabase.from('empresas').update({ ...data, updated_at: new Date().toISOString() }).eq('id', empresaId)
-      } else {
-        const { data: created } = await supabase.from('empresas').insert(data).select('id').single()
-        if (!created) return
-        empresaId = created.id
+    try {
+      if (editingEmpresa) {
+        const { error } = await supabase.from('empresas').update({ ...data, updated_at: new Date().toISOString() }).eq('id', editingEmpresa.id)
+        if (error) throw error
+      } else if (selectedId) {
+        let empresaId: string
+        const { data: existing } = await supabase.from('empresas').select('id').eq('cnpj', data.cnpj!).single()
+        if (existing) {
+          empresaId = existing.id
+          const { error: updateError } = await supabase.from('empresas').update({ ...data, updated_at: new Date().toISOString() }).eq('id', empresaId)
+          if (updateError) throw updateError
+        } else {
+          const { data: created, error: insertError } = await supabase.from('empresas').insert(data).select('id').single()
+          if (insertError) throw insertError
+          if (!created) throw new Error('Não foi possível obter o ID da empresa criada')
+          empresaId = created.id
+        }
+        const { data: existingLink } = await supabase
+          .from('empresa_plataforma').select('id').eq('empresa_id', empresaId).eq('plataforma_id', selectedId).single()
+        if (!existingLink) {
+          const { error: linkError } = await supabase.from('empresa_plataforma').insert({
+            empresa_id: empresaId, plataforma_id: selectedId, coluna: formColuna,
+            posicao: items.filter(i => i.coluna === formColuna).length,
+          })
+          if (linkError) throw linkError
+        }
       }
-      const { data: existingLink } = await supabase
-        .from('empresa_plataforma').select('id').eq('empresa_id', empresaId).eq('plataforma_id', selectedId).single()
-      if (!existingLink) {
-        await supabase.from('empresa_plataforma').insert({
-          empresa_id: empresaId, plataforma_id: selectedId, coluna: formColuna,
-          posicao: items.filter(i => i.coluna === formColuna).length,
-        })
-      }
+      setShowForm(false)
+      setEditingEmpresa(null)
+    } catch (err: any) {
+      console.error('Erro ao salvar empresa:', err)
+      alert('Erro ao salvar empresa: ' + (err.message || JSON.stringify(err)))
     }
-    setShowForm(false)
-    setEditingEmpresa(null)
   }, [editingEmpresa, selectedId, formColuna, items])
 
   async function handleSavePlat(e: React.FormEvent) {
@@ -372,6 +381,7 @@ export function Board() {
                 key={col.id}
                 coluna={col}
                 items={filtradas.filter(i => i.coluna === col.id)}
+                plataformaId={selectedId}
                 onAddCard={() => handleAddCard(col.id)}
                 onEditCard={handleEditCard}
                 onRemoveCard={handleRemoveCard}

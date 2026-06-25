@@ -4,11 +4,13 @@ import Link from 'next/link'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Empresa } from '@/types/kanban'
-import { GripVertical, Pencil, Trash2, Globe, Mail, Phone } from 'lucide-react'
+import { GripVertical, Pencil, Trash2, Globe, Mail, Phone, Flag } from 'lucide-react'
 
 interface Props {
   empresa: Empresa
   dragId: string
+  plataformaId?: string
+  hasRedFlag?: boolean
   overlay?: boolean
   onEdit?: () => void
   onRemove?: () => void
@@ -20,10 +22,12 @@ function formatCNPJ(cnpj: string) {
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
 
-export function Card({ empresa, dragId, overlay, onEdit, onRemove }: Props) {
+export function Card({ empresa, dragId, plataformaId, hasRedFlag, overlay, onEdit, onRemove }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId })
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
+
+  const hasFlag = hasRedFlag
 
   return (
     <div
@@ -31,10 +35,18 @@ export function Card({ empresa, dragId, overlay, onEdit, onRemove }: Props) {
       style={style}
       className={`group bg-card-bg rounded-lg shadow-sm transition-shadow cursor-pointer ${
         isDragging ? 'opacity-40' : ''
-      } ${overlay ? 'shadow-xl rotate-3 scale-105' : 'hover:shadow-md'}`}
+      } ${overlay ? 'shadow-xl rotate-3 scale-105' : 'hover:shadow-md'} ${
+        hasFlag ? 'border-2 border-red-500 ring-1 ring-red-200' : 'border border-transparent'
+      }`}
     >
       {/* Colored top stripe */}
 
+      {hasFlag && (
+        <div className="flex items-center gap-1 px-2 py-1 bg-red-500 rounded-t text-white text-[10px] font-semibold uppercase tracking-wide">
+          <Flag className="w-2.5 h-2.5 fill-white" />
+          Red Flag
+        </div>
+      )}
       <div className="p-2.5">
         {/* Drag handle + actions */}
         <div className="flex items-center gap-1 mb-1.5">
@@ -59,7 +71,7 @@ export function Card({ empresa, dragId, overlay, onEdit, onRemove }: Props) {
         </div>
 
         <Link
-          href={`/empresa/${empresa.id}`}
+          href={`/empresa/${empresa.id}${plataformaId ? `?plataforma=${plataformaId}` : ''}`}
           className="text-sm font-medium text-text-primary hover:text-accent hover:underline leading-snug block"
           onClick={e => e.stopPropagation()}
         >
