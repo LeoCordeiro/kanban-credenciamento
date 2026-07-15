@@ -96,19 +96,30 @@ export function Board() {
     return () => { supabase.removeChannel(ch) }
   }, [])
 
+  const fetchRedFlagComments = useCallback(async (plataformaId: string) => {
+    const { data } = await supabase.from('comentarios').select('empresa_id, texto').eq('plataforma_id', plataformaId).eq('red_flag', true)
+    const map = new Map<string, string[]>()
+    ;(data || []).forEach((c: any) => {
+      map.set(c.empresa_id, [...(map.get(c.empresa_id) || []), c.texto])
+    })
+    return map
+  }, [])
+
   useEffect(() => {
     if (!selectedId) { setItems([]); return }
 
-    supabase
-      .from('empresa_plataforma')
-      .select('id, coluna, posicao, has_red_flag, empresa_id, empresas(*)')
-      .eq('plataforma_id', selectedId)
-      .order('posicao')
-      .then(({ data }) => {
-        if (data) {
-          setItems(data.map((d: any) => ({ epId: d.id, empresa: d.empresas as Empresa, coluna: d.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: d.has_red_flag })))
-        }
-      })
+    Promise.all([
+      supabase
+        .from('empresa_plataforma')
+        .select('id, coluna, posicao, has_red_flag, empresa_id, empresas(*)')
+        .eq('plataforma_id', selectedId)
+        .order('posicao'),
+      fetchRedFlagComments(selectedId),
+    ]).then(([{ data }, flagMap]) => {
+      if (data) {
+        setItems(data.map((d: any) => ({ epId: d.id, empresa: d.empresas as Empresa, coluna: d.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: d.has_red_flag, redFlagComments: flagMap.get(d.empresa_id) || [] })))
+      }
+    })
 
     const ch = supabase.channel(`ep-${selectedId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empresa_plataforma', filter: `plataforma_id=eq.${selectedId}` }, async (p) => {
@@ -118,7 +129,8 @@ export function Board() {
           const rec = p.new as any
           const { data: emp } = await supabase.from('empresas').select('*').eq('id', rec.empresa_id).single()
           if (!emp) return
-          const item: BoardItem = { epId: rec.id, empresa: emp, coluna: rec.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: rec.has_red_flag }
+          const flagMap = await fetchRedFlagComments(selectedId)
+          const item: BoardItem = { epId: rec.id, empresa: emp, coluna: rec.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: rec.has_red_flag, redFlagComments: flagMap.get(rec.empresa_id) || [] }
           if (p.eventType === 'INSERT') {
             setItems(prev => prev.some(i => i.epId === rec.id) ? prev : [...prev, item])
           } else {
@@ -132,8 +144,15 @@ export function Board() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(ch) }
-  }, [selectedId])
+    const chComments = supabase.channel(`comentarios-${selectedId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios', filter: `plataforma_id=eq.${selectedId}` }, async () => {
+        const flagMap = await fetchRedFlagComments(selectedId)
+        setItems(prev => prev.map(i => ({ ...i, redFlagComments: flagMap.get(i.empresa.id) || [] })))
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(ch); supabase.removeChannel(chComments) }
+  }, [selectedId, fetchRedFlagComments])
 
   const handleDragStart = useCallback((e: DragStartEvent) => setActiveId(e.active.id as string), [])
 

@@ -11,6 +11,7 @@ interface Props {
   dragId: string
   plataformaId?: string
   hasRedFlag?: boolean
+  redFlagComments?: string[]
   overlay?: boolean
   onEdit?: () => void
   onRemove?: () => void
@@ -22,7 +23,7 @@ function formatCNPJ(cnpj: string) {
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
 
-export function Card({ empresa, dragId, plataformaId, hasRedFlag, overlay, onEdit, onRemove }: Props) {
+export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, overlay, onEdit, onRemove }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId })
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
@@ -42,9 +43,26 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, overlay, onEdi
       {/* Colored top stripe */}
 
       {hasFlag && (
-        <div className="flex items-center gap-1 px-2 py-1 bg-red-500 rounded-t text-white text-[10px] font-semibold uppercase tracking-wide">
-          <Flag className="w-2.5 h-2.5 fill-white" />
-          Red Flag
+        <div className="px-2 py-1 bg-red-500 rounded-t text-white text-[10px]">
+          <div className="flex items-center gap-1 font-semibold uppercase tracking-wide">
+            <Flag className="w-2.5 h-2.5 fill-white shrink-0" />
+            Red Flag
+            {redFlagComments && redFlagComments.length > 1 && (
+              <div className="relative group/tip ml-auto shrink-0">
+                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-white/25 text-[9px] font-bold cursor-default leading-none">
+                  +{redFlagComments.length - 1}
+                </span>
+                <div className="hidden group-hover/tip:block absolute z-20 right-0 top-full mt-1 w-56 max-h-52 overflow-y-auto bg-white text-text-primary text-[11px] normal-case font-normal rounded-lg shadow-xl border border-border p-2 space-y-1.5">
+                  {redFlagComments.map((c, idx) => (
+                    <p key={idx} className="leading-snug border-b border-border last:border-0 pb-1.5 last:pb-0">{c}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {redFlagComments && redFlagComments.length > 0 && (
+            <p className="mt-0.5 leading-snug normal-case font-normal line-clamp-2">{redFlagComments[0]}</p>
+          )}
         </div>
       )}
       <div className="p-2.5">

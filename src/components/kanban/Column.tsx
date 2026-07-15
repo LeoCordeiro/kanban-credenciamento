@@ -41,6 +41,7 @@ export function Column({ coluna, items, plataformaId, onAddCard, onEditCard, onR
               dragId={item.epId}
               plataformaId={plataformaId}
               hasRedFlag={item.hasRedFlag}
+              redFlagComments={item.redFlagComments}
               onEdit={() => onEditCard(item.empresa.id)}
               onRemove={() => onRemoveCard(item.epId)}
             />

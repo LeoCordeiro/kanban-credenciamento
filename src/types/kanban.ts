@@ -10,6 +10,7 @@ export interface Empresa {
   cnae_principal: string | null
   cnaes_secundarios: string | null
   nome_completo: string | null
+  nome_mae: string | null
   cpf: string | null
   data_nascimento: string | null
   endereco: string | null
@@ -77,6 +78,7 @@ export interface BoardItem {
   coluna: ColunaId
   plataformaId: string
   hasRedFlag?: boolean
+  redFlagComments?: string[]
 }
 
 export const COLUNAS: { id: ColunaId; nome: string; cor: string }[] = [
