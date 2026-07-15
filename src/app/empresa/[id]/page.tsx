@@ -19,6 +19,14 @@ function formatCPF(cpf: string) {
   return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
 }
 
+function maskCNPJ(v: string) {
+  return v.replace(/\D/g, '').replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2').slice(0, 18)
+}
+
+function maskCPF(v: string) {
+  return v.replace(/\D/g, '').replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1-$2').slice(0, 14)
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
@@ -83,6 +91,24 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   const logoRef = useRef<HTMLInputElement>(null)
   const [isEditingContato, setIsEditingContato] = useState(false)
   const [contatoForm, setContatoForm] = useState({ emails: '', whatsapp: '', site: '' })
+  const [isEditingDados, setIsEditingDados] = useState(false)
+  const [dadosForm, setDadosForm] = useState({
+    razao_social: '',
+    nome_fantasia: '',
+    cnpj: '',
+    cnae_principal: '',
+    cnaes_secundarios: '',
+    endereco_empresa: '',
+    info_bancarias: '',
+  })
+  const [isEditingResponsavel, setIsEditingResponsavel] = useState(false)
+  const [responsavelForm, setResponsavelForm] = useState({
+    nome_completo: '',
+    nome_mae: '',
+    cpf: '',
+    data_nascimento: '',
+    endereco: '',
+  })
 
   useEffect(() => {
     const saved = localStorage.getItem('kanban-bg-color')
@@ -261,6 +287,76 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
     }
   }
 
+  function startEditDados() {
+    if (!empresa) return
+    setDadosForm({
+      razao_social: empresa.razao_social || '',
+      nome_fantasia: empresa.nome_fantasia || '',
+      cnpj: empresa.cnpj ? maskCNPJ(empresa.cnpj) : '',
+      cnae_principal: empresa.cnae_principal || '',
+      cnaes_secundarios: empresa.cnaes_secundarios || '',
+      endereco_empresa: empresa.endereco_empresa || '',
+      info_bancarias: empresa.info_bancarias || '',
+    })
+    setIsEditingDados(true)
+  }
+
+  async function handleSaveDados() {
+    if (!empresa) return
+    const payload = {
+      razao_social: dadosForm.razao_social.trim(),
+      nome_fantasia: dadosForm.nome_fantasia.trim() || null,
+      cnpj: dadosForm.cnpj.replace(/\D/g, ''),
+      cnae_principal: dadosForm.cnae_principal.trim() || null,
+      cnaes_secundarios: dadosForm.cnaes_secundarios.trim() || null,
+      endereco_empresa: dadosForm.endereco_empresa.trim() || null,
+      info_bancarias: dadosForm.info_bancarias.trim() || null,
+    }
+    if (!payload.razao_social || !payload.cnpj) {
+      alert('Razão Social e CNPJ são obrigatórios')
+      return
+    }
+    const { error } = await supabase.from('empresas').update(payload).eq('id', id)
+    if (error) {
+      console.error('Erro ao atualizar dados da empresa:', error)
+      alert('Erro ao atualizar dados: ' + error.message)
+    } else {
+      setEmpresa(prev => prev ? { ...prev, ...payload } : prev)
+      setIsEditingDados(false)
+    }
+  }
+
+  function startEditResponsavel() {
+    if (!empresa) return
+    setResponsavelForm({
+      nome_completo: empresa.nome_completo || '',
+      nome_mae: empresa.nome_mae || '',
+      cpf: empresa.cpf ? maskCPF(empresa.cpf) : '',
+      data_nascimento: empresa.data_nascimento || '',
+      endereco: empresa.endereco || '',
+    })
+    setIsEditingResponsavel(true)
+  }
+
+  async function handleSaveResponsavel() {
+    if (!empresa) return
+    const payload = {
+      nome_completo: responsavelForm.nome_completo.trim() || null,
+      nome_mae: responsavelForm.nome_mae.trim() || null,
+      cpf: responsavelForm.cpf ? responsavelForm.cpf.replace(/\D/g, '') : null,
+      data_nascimento: responsavelForm.data_nascimento || null,
+      endereco: responsavelForm.endereco.trim() || null,
+    }
+    const { error } = await supabase.from('empresas').update(payload).eq('id', id)
+    if (error) {
+      console.error('Erro ao atualizar dados do responsável:', error)
+      alert('Erro ao atualizar dados: ' + error.message)
+    } else {
+      setEmpresa(prev => prev ? { ...prev, ...payload } : prev)
+      setIsEditingResponsavel(false)
+    }
+  }
+
   const darken = (hex: string) => {
     const n = parseInt(hex.slice(1), 16)
     const r = Math.max(0, (n >> 16) - 30)
@@ -316,32 +412,173 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
         {/* Linha 1: Dados da Empresa | Responsável */}
         <div className="grid grid-cols-2 gap-8 mb-8">
-          <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-5">Dados da Empresa</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Razão Social" copyValue={empresa.razao_social}>{empresa.razao_social}</Field>
-              <Field label="Nome Fantasia">{empresa.nome_fantasia}</Field>
-              <Field label="CNPJ" copyValue={empresa.cnpj}>{formatCNPJ(empresa.cnpj)}</Field>
-              <Field label="CNAE Principal">{empresa.cnae_principal}</Field>
-              <div className="col-span-2">
-                <Field label="CNAEs Secundários">{empresa.cnaes_secundarios}</Field>
+          {isEditingDados ? (
+            <section className="bg-white border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-semibold text-text-primary">Dados da Empresa</h2>
+                <div className="flex gap-2">
+                  <button onClick={handleSaveDados} className="text-sm text-btn-primary hover:underline font-medium">Salvar</button>
+                  <button onClick={() => setIsEditingDados(false)} className="text-sm text-text-muted hover:text-text-secondary">Cancelar</button>
+                </div>
               </div>
-              <Field label="Endereço da Empresa">{empresa.endereco_empresa}</Field>
-              <Field label="Info Bancárias">{empresa.info_bancarias}</Field>
-            </div>
-          </section>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Razão Social *</label>
+                    <input
+                      value={dadosForm.razao_social}
+                      onChange={e => setDadosForm(p => ({ ...p, razao_social: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Nome Fantasia</label>
+                    <input
+                      value={dadosForm.nome_fantasia}
+                      onChange={e => setDadosForm(p => ({ ...p, nome_fantasia: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">CNPJ *</label>
+                    <input
+                      value={dadosForm.cnpj}
+                      onChange={e => setDadosForm(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">CNAE Principal</label>
+                    <input
+                      value={dadosForm.cnae_principal}
+                      onChange={e => setDadosForm(p => ({ ...p, cnae_principal: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">CNAEs Secundários</label>
+                    <textarea
+                      value={dadosForm.cnaes_secundarios}
+                      onChange={e => setDadosForm(p => ({ ...p, cnaes_secundarios: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary resize-none"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Endereço da Empresa</label>
+                    <input
+                      value={dadosForm.endereco_empresa}
+                      onChange={e => setDadosForm(p => ({ ...p, endereco_empresa: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Info Bancárias</label>
+                    <input
+                      value={dadosForm.info_bancarias}
+                      onChange={e => setDadosForm(p => ({ ...p, info_bancarias: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <section className="bg-white border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-semibold text-text-primary">Dados da Empresa</h2>
+                <button onClick={startEditDados} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1 transition-colors">
+                  <Pencil className="w-4 h-4" /> Editar
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Razão Social" copyValue={empresa.razao_social}>{empresa.razao_social}</Field>
+                <Field label="Nome Fantasia">{empresa.nome_fantasia}</Field>
+                <Field label="CNPJ" copyValue={empresa.cnpj}>{formatCNPJ(empresa.cnpj)}</Field>
+                <Field label="CNAE Principal">{empresa.cnae_principal}</Field>
+                <div className="col-span-2">
+                  <Field label="CNAEs Secundários">{empresa.cnaes_secundarios}</Field>
+                </div>
+                <Field label="Endereço da Empresa">{empresa.endereco_empresa}</Field>
+                <Field label="Info Bancárias">{empresa.info_bancarias}</Field>
+              </div>
+            </section>
+          )}
 
-          <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-5">Responsável</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Nome Completo" copyValue={empresa.nome_completo ?? undefined}>{empresa.nome_completo}</Field>
-              <Field label="CPF" copyValue={empresa.cpf ?? undefined}>{empresa.cpf ? formatCPF(empresa.cpf) : null}</Field>
-              <Field label="Data de Nascimento" copyValue={empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : undefined}>
-                {empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : null}
-              </Field>
-              <Field label="Endereço de Contato">{empresa.endereco}</Field>
-            </div>
-          </section>
+          {isEditingResponsavel ? (
+            <section className="bg-white border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-semibold text-text-primary">Responsável</h2>
+                <div className="flex gap-2">
+                  <button onClick={handleSaveResponsavel} className="text-sm text-btn-primary hover:underline font-medium">Salvar</button>
+                  <button onClick={() => setIsEditingResponsavel(false)} className="text-sm text-text-muted hover:text-text-secondary">Cancelar</button>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Nome Completo</label>
+                    <input
+                      value={responsavelForm.nome_completo}
+                      onChange={e => setResponsavelForm(p => ({ ...p, nome_completo: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Nome da Mãe</label>
+                    <input
+                      value={responsavelForm.nome_mae}
+                      onChange={e => setResponsavelForm(p => ({ ...p, nome_mae: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">CPF</label>
+                    <input
+                      value={responsavelForm.cpf}
+                      onChange={e => setResponsavelForm(p => ({ ...p, cpf: maskCPF(e.target.value) }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Data de Nascimento</label>
+                    <input
+                      type="date"
+                      value={responsavelForm.data_nascimento}
+                      onChange={e => setResponsavelForm(p => ({ ...p, data_nascimento: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Endereço de Contato</label>
+                    <input
+                      value={responsavelForm.endereco}
+                      onChange={e => setResponsavelForm(p => ({ ...p, endereco: e.target.value }))}
+                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <section className="bg-white border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-semibold text-text-primary">Responsável</h2>
+                <button onClick={startEditResponsavel} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1 transition-colors">
+                  <Pencil className="w-4 h-4" /> Editar
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Nome Completo" copyValue={empresa.nome_completo ?? undefined}>{empresa.nome_completo}</Field>
+                <Field label="Nome da Mãe" copyValue={empresa.nome_mae ?? undefined}>{empresa.nome_mae}</Field>
+                <Field label="CPF" copyValue={empresa.cpf ?? undefined}>{empresa.cpf ? formatCPF(empresa.cpf) : null}</Field>
+                <Field label="Data de Nascimento" copyValue={empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : undefined}>
+                  {empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : null}
+                </Field>
+                <Field label="Endereço de Contato">{empresa.endereco}</Field>
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Linha 2: Contato | Credenciais */}

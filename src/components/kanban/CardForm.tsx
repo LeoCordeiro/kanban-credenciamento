@@ -34,6 +34,7 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
     cnae_principal: empresa?.cnae_principal ?? '',
     cnaes_secundarios: empresa?.cnaes_secundarios ?? '',
     nome_completo: empresa?.nome_completo ?? '',
+    nome_mae: empresa?.nome_mae ?? '',
     cpf: empresa?.cpf ? maskCPF(empresa.cpf) : '',
     data_nascimento: empresa?.data_nascimento ?? '',
     endereco: empresa?.endereco ?? '',
@@ -113,6 +114,7 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
       cnae_principal: form.cnae_principal || null,
       cnaes_secundarios: form.cnaes_secundarios || null,
       nome_completo: form.nome_completo || null,
+      nome_mae: form.nome_mae || null,
       data_nascimento: form.data_nascimento || null,
       endereco: form.endereco || null,
       endereco_empresa: form.endereco_empresa || null,
@@ -201,6 +203,10 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
                 <input value={form.nome_completo} onChange={e => set('nome_completo', e.target.value)} className={inputClass} placeholder="Nome do responsável" />
               </div>
               <div>
+                <label className={labelClass}>Nome da Mãe</label>
+                <input value={form.nome_mae} onChange={e => set('nome_mae', e.target.value)} className={inputClass} placeholder="Nome da mãe do responsável" />
+              </div>
+              <div>
                 <label className={labelClass}>CPF</label>
                 <input value={form.cpf} onChange={e => set('cpf', maskCPF(e.target.value))} className={inputClass} placeholder="000.000.000-00" />
               </div>
@@ -208,7 +214,7 @@ export function CardForm({ empresa, onSave, onClose }: Props) {
                 <label className={labelClass}>Data de Nascimento</label>
                 <input type="date" value={form.data_nascimento} onChange={e => set('data_nascimento', e.target.value)} className={inputClass} />
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className={labelClass}>Endereço de Contato</label>
                 <input value={form.endereco} onChange={e => set('endereco', e.target.value)} className={inputClass} placeholder="Endereço do responsável" />
               </div>
