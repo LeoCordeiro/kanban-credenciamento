@@ -1,13 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, CollisionDetection, pointerWithin, rectIntersection, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { arrayMove } from '@dnd-kit/sortable'
 import { supabase } from '@/lib/supabase'
-import { Empresa, Plataforma, BoardItem, COLUNAS, ColunaId } from '@/types/kanban'
+import { Empresa, Plataforma, BoardItem, ChecklistResumo, COLUNAS, ColunaId } from '@/types/kanban'
 import { Column } from './Column'
 import { Card } from './Card'
 import { CardForm } from './CardForm'
-import { Search, Plus, X, Pencil, Trash2, Palette, Link2 } from 'lucide-react'
+import { PlataformaTabs } from './PlataformaTabs'
+import { UserMenu } from '../UserMenu'
+import { Search, Plus, X, Palette, Link2 } from 'lucide-react'
 
 const BG_COLORS = [
   { id: 'blue', value: '#0052CC', label: 'Azul' },
@@ -26,6 +29,17 @@ const BG_COLORS = [
   { id: 'lime', value: '#65A30D', label: 'Lima' },
   { id: 'fuchsia', value: '#A21CAF', label: 'Fúcsia' },
 ]
+
+// Onde o ponteiro está manda mais que a sobreposição de retângulos: com
+// closestCorners, arrastar para a última coluna erra quando as raias têm
+// alturas muito diferentes.
+const detectarColisao: CollisionDetection = args => {
+  const noPonteiro = pointerWithin(args)
+  return noPonteiro.length > 0 ? noPonteiro : rectIntersection(args)
+}
+
+const ordenar = (lista: Plataforma[]) =>
+  [...lista].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0) || a.created_at.localeCompare(b.created_at))
 
 export function Board() {
   const [plataformas, setPlataformas] = useState<Plataforma[]>([])
@@ -74,18 +88,23 @@ export function Board() {
   }
 
   useEffect(() => {
-    supabase.from('plataformas').select('*').order('created_at').then(({ data }) => {
+    async function carregar() {
+      // A coluna `ordem` vem da migração 002; se ela ainda não existe, cai na
+      // ordem de criação em vez de quebrar o board.
+      let { data, error } = await supabase.from('plataformas').select('*').order('ordem').order('created_at')
+      if (error) ({ data } = await supabase.from('plataformas').select('*').order('created_at'))
       if (data && data.length > 0) {
         setPlataformas(data)
         setSelectedId(data[0].id)
       }
       setLoading(false)
-    })
+    }
+    carregar()
 
     const ch = supabase.channel('plataformas-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'plataformas' }, (p) => {
-        if (p.eventType === 'INSERT') setPlataformas(prev => [...prev, p.new as Plataforma])
-        if (p.eventType === 'UPDATE') setPlataformas(prev => prev.map(pl => pl.id === (p.new as Plataforma).id ? p.new as Plataforma : pl))
+        if (p.eventType === 'INSERT') setPlataformas(prev => ordenar([...prev, p.new as Plataforma]))
+        if (p.eventType === 'UPDATE') setPlataformas(prev => ordenar(prev.map(pl => pl.id === (p.new as Plataforma).id ? p.new as Plataforma : pl)))
         if (p.eventType === 'DELETE') {
           setPlataformas(prev => prev.filter(pl => pl.id !== (p.old as { id: string }).id))
           setSelectedId(prev => prev === (p.old as { id: string }).id ? null : prev)
@@ -96,11 +115,38 @@ export function Board() {
     return () => { supabase.removeChannel(ch) }
   }, [])
 
+  const handleReorderPlataformas = useCallback(async (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const de = plataformas.findIndex(p => p.id === active.id)
+    const para = plataformas.findIndex(p => p.id === over.id)
+    if (de < 0 || para < 0) return
+
+    const nova = arrayMove(plataformas, de, para)
+    setPlataformas(nova)
+    await Promise.all(nova.map((p, i) => supabase.from('plataformas').update({ ordem: i }).eq('id', p.id)))
+  }, [plataformas])
+
   const fetchRedFlagComments = useCallback(async (plataformaId: string) => {
     const { data } = await supabase.from('comentarios').select('empresa_id, texto').eq('plataforma_id', plataformaId).eq('red_flag', true)
     const map = new Map<string, string[]>()
     ;(data || []).forEach((c: any) => {
       map.set(c.empresa_id, [...(map.get(c.empresa_id) || []), c.texto])
+    })
+    return map
+  }, [])
+
+  // O checklist é da empresa, não da plataforma: os pendentes que aparecem no
+  // card são os mesmos em qualquer quadro onde ela esteja.
+  const fetchChecklists = useCallback(async () => {
+    const { data } = await supabase.from('checklist_itens').select('empresa_id, titulo, concluido').order('ordem')
+    const map = new Map<string, ChecklistResumo>()
+    ;(data || []).forEach((c: any) => {
+      const atual = map.get(c.empresa_id) || { feitos: 0, total: 0, pendentes: [] }
+      atual.total++
+      if (c.concluido) atual.feitos++
+      else atual.pendentes.push(c.titulo)
+      map.set(c.empresa_id, atual)
     })
     return map
   }, [])
@@ -115,9 +161,10 @@ export function Board() {
         .eq('plataforma_id', selectedId)
         .order('posicao'),
       fetchRedFlagComments(selectedId),
-    ]).then(([{ data }, flagMap]) => {
+      fetchChecklists(),
+    ]).then(([{ data }, flagMap, checkMap]) => {
       if (data) {
-        setItems(data.map((d: any) => ({ epId: d.id, empresa: d.empresas as Empresa, coluna: d.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: d.has_red_flag, redFlagComments: flagMap.get(d.empresa_id) || [] })))
+        setItems(data.map((d: any) => ({ epId: d.id, empresa: d.empresas as Empresa, coluna: d.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: d.has_red_flag, redFlagComments: flagMap.get(d.empresa_id) || [], checklist: checkMap.get(d.empresa_id) })))
       }
     })
 
@@ -129,8 +176,8 @@ export function Board() {
           const rec = p.new as any
           const { data: emp } = await supabase.from('empresas').select('*').eq('id', rec.empresa_id).single()
           if (!emp) return
-          const flagMap = await fetchRedFlagComments(selectedId)
-          const item: BoardItem = { epId: rec.id, empresa: emp, coluna: rec.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: rec.has_red_flag, redFlagComments: flagMap.get(rec.empresa_id) || [] }
+          const [flagMap, checkMap] = await Promise.all([fetchRedFlagComments(selectedId), fetchChecklists()])
+          const item: BoardItem = { epId: rec.id, empresa: emp, coluna: rec.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: rec.has_red_flag, redFlagComments: flagMap.get(rec.empresa_id) || [], checklist: checkMap.get(rec.empresa_id) }
           if (p.eventType === 'INSERT') {
             setItems(prev => prev.some(i => i.epId === rec.id) ? prev : [...prev, item])
           } else {
@@ -151,8 +198,19 @@ export function Board() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(ch); supabase.removeChannel(chComments) }
-  }, [selectedId, fetchRedFlagComments])
+    const chChecklist = supabase.channel(`checklist-board-${selectedId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, async () => {
+        const checkMap = await fetchChecklists()
+        setItems(prev => prev.map(i => ({ ...i, checklist: checkMap.get(i.empresa.id) })))
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(ch)
+      supabase.removeChannel(chComments)
+      supabase.removeChannel(chChecklist)
+    }
+  }, [selectedId, fetchRedFlagComments, fetchChecklists])
 
   const handleDragStart = useCallback((e: DragStartEvent) => setActiveId(e.active.id as string), [])
 
@@ -229,7 +287,7 @@ export function Board() {
       await supabase.from('plataformas').update({ nome: platNome.trim() }).eq('id', editingPlat.id)
     } else {
       const defaultCor = BG_COLORS[plataformas.length % BG_COLORS.length].value
-      const { data } = await supabase.from('plataformas').insert({ nome: platNome.trim(), cor: defaultCor }).select().single()
+      const { data } = await supabase.from('plataformas').insert({ nome: platNome.trim(), cor: defaultCor, ordem: plataformas.length }).select().single()
       if (data && !selectedId) setSelectedId(data.id)
     }
     setShowPlatForm(false)
@@ -296,35 +354,15 @@ export function Board() {
       <div className="px-6 py-4" style={{ backgroundColor: darken(bgColor) + '99' }}>
         {/* Plataformas */}
         <div className="flex items-start gap-2 mb-3 overflow-x-auto">
-          {plataformas.map(p => {
-            const count = selectedId === p.id ? items.length : 0
-            const isActive = selectedId === p.id
-            return (
-              <div key={p.id} className="group/tab flex flex-col items-center">
-                <button
-                  onClick={() => setSelectedId(p.id)}
-                  className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-white text-text-primary shadow-md'
-                      : 'bg-white/15 text-white/80 hover:bg-white/25 hover:text-white'
-                  }`}
-                >
-                  {p.nome}
-                  {isActive && count > 0 && (
-                    <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-accent text-white rounded-full font-bold">{count}</span>
-                  )}
-                </button>
-                <div className={`flex gap-1 mt-1 h-5 transition-opacity ${isActive ? 'opacity-0 group-hover/tab:opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                  <button onClick={() => { setEditingPlat(p); setPlatNome(p.nome); setShowPlatForm(true) }} className="p-1 text-white/50 hover:text-white">
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                  <button onClick={() => handleDeletePlat(p.id)} className="p-1 text-white/50 hover:text-red-300">
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+          <PlataformaTabs
+            plataformas={plataformas}
+            selectedId={selectedId}
+            count={items.length}
+            onSelect={setSelectedId}
+            onEdit={p => { setEditingPlat(p); setPlatNome(p.nome); setShowPlatForm(true) }}
+            onDelete={handleDeletePlat}
+            onReorder={handleReorderPlataformas}
+          />
           <button
             onClick={() => { setEditingPlat(null); setPlatNome(''); setShowPlatForm(true) }}
             className="px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/15 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 font-medium"
@@ -343,6 +381,8 @@ export function Board() {
           <button onClick={() => setShowBgPicker(true)} className="p-2 text-white/50 hover:text-white hover:bg-white/15 rounded-lg transition-colors" title="Cor de fundo">
             <Palette className="w-5 h-5" />
           </button>
+
+          <UserMenu />
         </div>
 
         {/* Busca centralizada */}
@@ -393,7 +433,7 @@ export function Board() {
           </button>
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={detectarColisao} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="flex-1 flex gap-3 px-4 py-3 overflow-x-auto items-stretch">
             {COLUNAS.map(col => (
               <Column

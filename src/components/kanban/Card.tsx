@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Empresa } from '@/types/kanban'
-import { GripVertical, Pencil, Trash2, Globe, Mail, Phone, Flag } from 'lucide-react'
+import { Empresa, ChecklistResumo } from '@/types/kanban'
+import { GripVertical, Pencil, Trash2, Globe, Mail, Phone, Flag, ListChecks } from 'lucide-react'
 
 interface Props {
   empresa: Empresa
@@ -12,6 +12,7 @@ interface Props {
   plataformaId?: string
   hasRedFlag?: boolean
   redFlagComments?: string[]
+  checklist?: ChecklistResumo
   overlay?: boolean
   onEdit?: () => void
   onRemove?: () => void
@@ -23,7 +24,7 @@ function formatCNPJ(cnpj: string) {
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
 
-export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, overlay, onEdit, onRemove }: Props) {
+export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, overlay, onEdit, onRemove }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId })
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
@@ -101,6 +102,32 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
         )}
 
         <p className="text-[11px] text-text-muted mt-1 font-mono">{formatCNPJ(empresa.cnpj)}</p>
+
+        {checklist && checklist.total > 0 && (
+          <div className="relative group/check inline-flex items-center gap-1 mt-1.5">
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                checklist.feitos === checklist.total
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}
+            >
+              <ListChecks className="w-3 h-3" />
+              {checklist.feitos}/{checklist.total}
+            </span>
+
+            {checklist.pendentes.length > 0 && (
+              <div className="hidden group-hover/check:block absolute z-20 left-0 top-full mt-1 w-52 bg-white text-text-primary text-[11px] rounded-lg shadow-xl border border-border p-2">
+                <p className="font-semibold text-text-secondary mb-1">Pendentes</p>
+                <ul className="space-y-0.5">
+                  {checklist.pendentes.map((t, i) => (
+                    <li key={i} className="leading-snug">• {t}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {(empresa.site || empresa.emails || empresa.whatsapp) && (
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-2 pt-2 border-t border-border">

@@ -1,9 +1,27 @@
 # Kanban Credenciamento
 
-Sistema Kanban simples para gerenciar credenciamento de empresas. 2 usuários, tempo real, drag-and-drop.
+Sistema Kanban simples para gerenciar credenciamento de empresas. Login próprio, tempo real, drag-and-drop.
 
 ## O que é
-Board Kanban com 6 colunas onde cards de empresas transitam entre etapas do processo de credenciamento. 2 usuários acessam simultâneamente com atualização em tempo real.
+Board Kanban com 5 colunas onde cards de empresas transitam entre etapas do processo de credenciamento. Vários usuários acessam simultâneamente com atualização em tempo real.
+
+## Autenticação
+Login próprio (tabela `usuarios`), **não** Supabase Auth — o Auth do projeto está com
+confirmação de e-mail ligada, o que impediria criar contas com usuário simples.
+A senha é bcrypt via pgcrypto e só é conferida dentro de funções `SECURITY DEFINER`
+(`login_usuario`, `criar_usuario`, `alterar_senha`); a tabela fica com RLS sem policy,
+então a anon key não lê o hash. Usuários iniciais: leonardo, gabriel, emerson.
+
+Isso protege o acesso à interface. Não é uma barreira de dados: a anon key continua
+com acesso direto às demais tabelas, como já era antes do login existir.
+
+## Checklist
+Cada empresa nasce com 7 itens (Criar Negócio, Logo, Domínio, E-mail, Instagram, Site,
+Reclame Aqui) via trigger em `empresas`. O checklist é **da empresa**, não da plataforma —
+logo/domínio/site são únicos por empresa, então os pendentes são os mesmos em qualquer quadro.
+
+## Migrações
+`supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes.
 
 ## Colunas
 1. **A Analisar** — empresa recém cadastrada, aguardando análise

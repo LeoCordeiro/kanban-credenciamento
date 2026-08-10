@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Empresa, Anexo, Comentario, Credencial, Plataforma, COLUNAS } from '@/types/kanban'
+import { Checklist } from '@/components/Checklist'
+import { useAuth } from '@/lib/auth'
 import { ArrowLeft, Upload, FileText, Trash2, Send, ImageIcon, Paperclip, Globe, Mail, Phone, KeyRound, Plus, Eye, EyeOff, Copy, ExternalLink, Pencil, Flag } from 'lucide-react'
 
 function formatCNPJ(cnpj: string) {
@@ -75,6 +77,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   const { id } = use(params)
   const searchParams = useSearchParams()
   const plataformaId = searchParams.get('plataforma')
+  const { usuario } = useAuth()
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [plataformaNome, setPlataformaNome] = useState<string | null>(null)
   const [anexos, setAnexos] = useState<Anexo[]>([])
@@ -194,7 +197,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   async function handleEnviarComentario(e: React.FormEvent) {
     e.preventDefault()
     if (!novoComentario.trim() || !plataformaId) return
-    await supabase.from('comentarios').insert({ empresa_id: id, texto: novoComentario.trim(), plataforma_id: plataformaId })
+    await supabase.from('comentarios').insert({ empresa_id: id, texto: novoComentario.trim(), plataforma_id: plataformaId, autor: usuario?.nome ?? null })
     setNovoComentario('')
   }
 
@@ -579,6 +582,11 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               </div>
             </section>
           )}
+        </div>
+
+        {/* Checklist da empresa — vale para todas as plataformas */}
+        <div className="mb-8">
+          <Checklist empresaId={id} />
         </div>
 
         {/* Linha 2: Contato | Credenciais */}

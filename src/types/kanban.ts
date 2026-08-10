@@ -59,7 +59,26 @@ export interface Plataforma {
   id: string
   nome: string
   cor: string
+  ordem?: number
   created_at: string
+}
+
+export interface ChecklistItem {
+  id: string
+  empresa_id: string
+  titulo: string
+  concluido: boolean
+  ordem: number
+  concluido_em: string | null
+  concluido_por: string | null
+  created_at: string
+}
+
+export interface Usuario {
+  id: string
+  nome: string
+  ativo?: boolean
+  created_at?: string
 }
 
 export interface EmpresaPlataforma {
@@ -72,6 +91,12 @@ export interface EmpresaPlataforma {
   created_at: string
 }
 
+export interface ChecklistResumo {
+  feitos: number
+  total: number
+  pendentes: string[]
+}
+
 export interface BoardItem {
   epId: string
   empresa: Empresa
@@ -79,6 +104,7 @@ export interface BoardItem {
   plataformaId: string
   hasRedFlag?: boolean
   redFlagComments?: string[]
+  checklist?: ChecklistResumo
 }
 
 export const COLUNAS: { id: ColunaId; nome: string; cor: string }[] = [

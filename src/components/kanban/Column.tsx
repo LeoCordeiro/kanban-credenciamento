@@ -18,10 +18,11 @@ export function Column({ coluna, items, plataformaId, onAddCard, onEditCard, onR
   const { setNodeRef, isOver } = useDroppable({ id: coluna.id })
 
   return (
-    <div className="flex flex-col flex-1 min-w-[250px]">
+    // O droppable é o wrapper inteiro (altura total da raia), senão a área de
+    // soltar fica do tamanho do conteúdo e colunas curtas ficam difíceis de acertar.
+    <div ref={setNodeRef} className="flex flex-col flex-1 min-w-[250px]">
       <div
-        ref={setNodeRef}
-        className={`flex flex-col rounded-xl transition-colors ${
+        className={`flex flex-col flex-1 rounded-xl transition-colors ${
           isOver ? 'bg-column-bg ring-2 ring-accent/40' : 'bg-column-bg'
         }`}
       >
@@ -42,6 +43,7 @@ export function Column({ coluna, items, plataformaId, onAddCard, onEditCard, onR
               plataformaId={plataformaId}
               hasRedFlag={item.hasRedFlag}
               redFlagComments={item.redFlagComments}
+              checklist={item.checklist}
               onEdit={() => onEditCard(item.empresa.id)}
               onRemove={() => onRemoveCard(item.epId)}
             />
