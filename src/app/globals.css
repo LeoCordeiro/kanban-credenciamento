@@ -14,8 +14,47 @@
   --color-accent-hover: #026aa7;
   --color-btn-primary: #0079bf;
   --color-btn-primary-hover: #026aa7;
+
+  /* Ficha densa (tela de detalhe): superfície rebaixada e divisória mais leve
+     que --color-border, para separar seções sem empilhar card dentro de card. */
+  --color-surface-sunken: #f1f2f4;
+  --color-hairline: #e8eaee;
+
+  /* IBM Plex: sans para a interface, mono para dado que se copia
+     (CNPJ, CPF, CEP, conta, senha, data). As vars vêm do next/font no layout. */
+  --font-sans: var(--font-plex-sans), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* Ferramenta de trabalho: barra de rolagem fina nas listas com scroll próprio,
+   para não comer largura útil da coluna. */
+.scroll-fino {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+.scroll-fino::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-fino::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+.scroll-fino::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

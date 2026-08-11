@@ -4,12 +4,12 @@ import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Empresa, Anexo, Comentario, Credencial, Plataforma, COLUNAS } from '@/types/kanban'
+import { Empresa, Anexo, Comentario, Credencial, COLUNAS } from '@/types/kanban'
 import { Checklist } from '@/components/Checklist'
 import { ZapPanel, useZapPanel, temWhatsapp } from '@/components/ZapPanel'
 import { useAuth } from '@/lib/auth'
 import { MessageCircle } from 'lucide-react'
-import { ArrowLeft, Upload, FileText, Trash2, Send, ImageIcon, Paperclip, Globe, Mail, Phone, KeyRound, Plus, Eye, EyeOff, Copy, ExternalLink, Pencil, Flag } from 'lucide-react'
+import { ArrowLeft, Upload, FileText, Trash2, Send, ImageIcon, Paperclip, Globe, Mail, Phone, KeyRound, Plus, Eye, EyeOff, Copy, ExternalLink, Pencil, Flag, Check, Building2, User, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 
 function formatCNPJ(cnpj: string) {
   const d = cnpj.replace(/\D/g, '')
@@ -57,18 +57,95 @@ function getLuminance(hex: string) {
   return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs
 }
 
-function Field({ label, children, copyValue }: { label: string; children: React.ReactNode; copyValue?: string }) {
+/* ── Vocabulário visual da ficha ────────────────────────────────────────────
+   Ferramenta de operação, não página de marketing: superfície branca única,
+   seções separadas por fio de 1px, zero card dentro de card.                */
+
+const INPUT = 'w-full px-2 py-1 bg-surface-sunken border border-border rounded text-[13px] leading-5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary focus:ring-2 focus:ring-btn-primary/20 transition-colors'
+// --color-text-muted (#97a0af) dá 2.64:1 sobre branco e reprova no AA; em texto
+// pequeno de dado real usar --color-text-secondary (#5e6c84), que mede 5.31:1.
+const CAMPO_LABEL = 'block text-[10px] font-semibold uppercase tracking-[0.07em] text-text-secondary mb-0.5'
+const TITULO_SECAO = 'text-[11px] font-semibold uppercase tracking-[0.09em] text-text-secondary'
+const BOTAO_DISCRETO = 'inline-flex items-center gap-1 text-[11px] font-medium text-text-secondary hover:text-text-primary transition-colors'
+
+function Painel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <section className={`bg-white border border-border rounded overflow-hidden ${className}`}>{children}</section>
+}
+
+function CabecalhoSecao({ icone, titulo, contagem, children }: { icone?: React.ReactNode; titulo: string; contagem?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 h-8 px-3 border-b border-hairline bg-surface-sunken/50">
+      {icone}
+      <h2 className={TITULO_SECAO}>{titulo}</h2>
+      {contagem}
+      <div className="ml-auto flex items-center gap-3">{children}</div>
+    </div>
+  )
+}
+
+function CopyBtn({ value, titulo = 'Copiar' }: { value: string; titulo?: string }) {
+  const [ok, setOk] = useState(false)
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1200) }}
+      className={`shrink-0 p-0.5 rounded transition-colors ${ok ? 'text-green-600' : 'text-text-secondary hover:text-btn-primary'}`}
+      title={titulo}
+      aria-label={titulo}
+    >
+      {ok ? <Check className="w-3.5 h-3.5" strokeWidth={2.5} /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  )
+}
+
+function Field({ label, children, copyValue, mono, span }: { label: string; children: React.ReactNode; copyValue?: string; mono?: boolean; span?: boolean }) {
+  return (
+    <div data-campo className={span ? 'col-span-2' : ''}>
+      <dt className={CAMPO_LABEL}>{label}</dt>
+      <dd className="flex items-start gap-1">
+        <div className={`flex-1 min-w-0 text-[13px] leading-[1.35] text-text-primary ${mono ? 'font-mono tracking-tight' : ''}`}>
+          {children || <span className="text-text-muted">—</span>}
+        </div>
+        {copyValue && <CopyBtn value={copyValue} />}
+      </dd>
+    </div>
+  )
+}
+
+/** CNAEs secundários é o maior vilão de altura da tela (chega a 2 mil caracteres).
+ *  Fechado mostra só os códigos — que é o que se digita no portal da plataforma;
+ *  aberto mostra código + descrição numa lista com rolagem própria. */
+function CnaesSecundarios({ texto }: { texto: string | null }) {
+  const [aberto, setAberto] = useState(false)
+  const itens = (texto ?? '').split(';').map(s => s.trim()).filter(Boolean)
+
+  if (itens.length === 0) return <span className="text-text-muted">—</span>
+  if (itens.length === 1) return <span>{itens[0]}</span>
+
+  const partes = itens.map(i => {
+    const m = i.match(/^([\d.\-/]+)\s*[-–]\s*(.*)$/)
+    return m ? { codigo: m[1], desc: m[2] } : { codigo: '', desc: i }
+  })
+
   return (
     <div>
-      <p className="text-sm text-text-muted mb-1">{label}</p>
-      <div className="flex items-center gap-2">
-        <div className="text-base text-text-primary flex-1 min-w-0">{children || <span className="text-text-muted">—</span>}</div>
-        {copyValue && (
-          <button onClick={() => navigator.clipboard.writeText(copyValue)} className="p-1 text-text-muted hover:text-text-secondary transition-colors shrink-0" title="Copiar">
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
+      <button onClick={() => setAberto(v => !v)} className="flex items-center gap-1 text-[11px] font-medium text-btn-primary hover:underline">
+        {itens.length} atividades
+        {aberto ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+      {aberto ? (
+        <ul className="scroll-fino mt-1 max-h-[132px] overflow-y-auto divide-y divide-hairline border-y border-hairline">
+          {partes.map((p, i) => (
+            <li key={i} className="flex gap-2 py-1 text-[12px] leading-tight">
+              {p.codigo && <span className="font-mono text-text-secondary shrink-0">{p.codigo}</span>}
+              <span className="text-text-primary min-w-0">{p.desc}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-0.5 font-mono text-[12px] text-text-secondary truncate" title={partes.map(p => p.codigo || p.desc).join(' · ')}>
+          {partes.map(p => p.codigo || p.desc).join(' · ')}
+        </p>
+      )}
     </div>
   )
 }
@@ -380,489 +457,465 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div className="min-h-screen text-text-primary" style={{ backgroundColor: bgColor }}>
-      <header className="px-6 py-4" style={{ backgroundColor: darken(bgColor) + '99' }}>
-        <Link href="/" className="inline-flex items-center gap-2 text-base transition-colors" style={{ color: headerSub }} onMouseEnter={e => e.currentTarget.style.color = headerText} onMouseLeave={e => e.currentTarget.style.color = headerSub}>
-          <ArrowLeft className="w-5 h-5" /> Voltar ao board
+      {/* Barra única: voltar, identidade e situação da empresa numa linha só.
+          O bloco antigo de cabeçalho gastava ~180px de altura só com chrome. */}
+      <header
+        className="sticky top-0 z-30 flex items-center gap-3 h-13 px-4 py-2 backdrop-blur-sm"
+        style={{ backgroundColor: darken(bgColor) + 'dd' }}
+      >
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium shrink-0 transition-colors"
+          style={{ color: headerSub }}
+          onMouseEnter={e => e.currentTarget.style.color = headerText}
+          onMouseLeave={e => e.currentTarget.style.color = headerSub}
+        >
+          <ArrowLeft className="w-4 h-4" /> Board
         </Link>
+
+        <span className="w-px h-5 shrink-0" style={{ backgroundColor: headerSub, opacity: 0.3 }} />
+
+        <button onClick={() => logoRef.current?.click()} className="relative group/logo shrink-0" title="Clique para alterar a logo">
+          {empresa.logo_url ? (
+            <img src={empresa.logo_url} alt="" className="w-9 h-9 rounded object-cover border border-white/20" />
+          ) : (
+            <div className="w-9 h-9 rounded bg-black/20 border border-white/15 flex items-center justify-center">
+              <ImageIcon className="w-4 h-4" style={{ color: headerSub }} />
+            </div>
+          )}
+          <div className="absolute inset-0 rounded bg-black/50 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
+            <Upload className="w-4 h-4 text-white" />
+          </div>
+          <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
+        </button>
+
+        <div className="min-w-0 flex-1 flex items-baseline gap-2">
+          <h1 className="text-[15px] font-semibold leading-tight truncate" style={{ color: headerText }}>{empresa.razao_social}</h1>
+          {empresa.nome_fantasia && <span className="hidden lg:inline text-[12px] truncate" style={{ color: headerSub }}>{empresa.nome_fantasia}</span>}
+        </div>
+
+        {/* Em tela estreita some o que já está repetido na ficha logo abaixo
+            (fantasia, CNPJ, plataforma) — some o dado duplicado, não o único. */}
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={() => navigator.clipboard.writeText(empresa.cnpj)}
+            className="hidden sm:block shrink-0 font-mono text-[12px] tracking-tight px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
+            style={{ color: headerSub }}
+            title="Copiar CNPJ"
+          >
+            {formatCNPJ(empresa.cnpj)}
+          </button>
+          {plataformaNome && (
+            <span className="hidden xl:inline shrink-0 text-[11px] font-medium px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: headerText }}>
+              {plataformaNome}
+            </span>
+          )}
+          {coluna && (
+            <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: coluna.cor, color: '#fff' }}>
+              {coluna.nome}
+            </span>
+          )}
+        </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-8 py-10">
-        {/* Header */}
-        <div className="flex items-start gap-6 mb-10">
-          <button onClick={() => logoRef.current?.click()} className="relative group/logo shrink-0" title="Clique para alterar a logo">
-            {empresa.logo_url ? (
-              <img src={empresa.logo_url} alt="" className="w-24 h-24 rounded-2xl object-cover border border-border" />
+      {/* Composição assimétrica por densidade real: a ficha cadastral (o que se
+          copia o dia inteiro) leva a coluna larga; operação e histórico ficam ao lado. */}
+      <main
+        data-detalhe-root
+        className="grid items-start gap-3 px-4 py-3 grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)_minmax(0,1.1fr)] xl:h-[calc(100vh-3.25rem)] xl:items-stretch xl:overflow-hidden"
+      >
+        {/* ── Coluna A — ficha cadastral ─────────────────────────────────── */}
+        <Painel className="lg:col-span-2 xl:col-span-1 xl:h-full xl:overflow-y-auto scroll-fino">
+          {/* Empresa */}
+          <CabecalhoSecao icone={<Building2 className="w-3.5 h-3.5 text-text-muted" />} titulo="Empresa">
+            {isEditingDados ? (
+              <>
+                <button onClick={handleSaveDados} className="text-[11px] font-semibold text-btn-primary hover:underline">Salvar</button>
+                <button onClick={() => setIsEditingDados(false)} className="text-[11px] text-text-secondary hover:text-text-primary">Cancelar</button>
+              </>
             ) : (
-              <div className="w-24 h-24 rounded-2xl bg-zinc-900 border border-border flex items-center justify-center">
-                <ImageIcon className="w-10 h-10 text-text-muted" />
-              </div>
+              <button onClick={startEditDados} className={BOTAO_DISCRETO}><Pencil className="w-3 h-3" /> Editar</button>
             )}
-            <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
-              <Upload className="w-7 h-7 text-white" />
-            </div>
-            <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold" style={{ color: headerText }}>{empresa.razao_social}</h1>
-            {empresa.nome_fantasia && <p className="text-lg mt-1" style={{ color: headerSub }}>{empresa.nome_fantasia}</p>}
-            <div className="flex items-center gap-4 mt-3">
-              <span className="text-sm font-mono" style={{ color: headerSub }}>{formatCNPJ(empresa.cnpj)}</span>
-              {coluna && (
-                <span className="text-sm px-3 py-1 rounded-full font-medium" style={{ backgroundColor: coluna.cor + '20', color: coluna.cor }}>
-                  {coluna.nome}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+          </CabecalhoSecao>
 
-        {/* Linha 1: Dados da Empresa | Responsável */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
           {isEditingDados ? (
-            <section className="bg-white border border-border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-text-primary">Dados da Empresa</h2>
-                <div className="flex gap-2">
-                  <button onClick={handleSaveDados} className="text-sm text-btn-primary hover:underline font-medium">Salvar</button>
-                  <button onClick={() => setIsEditingDados(false)} className="text-sm text-text-muted hover:text-text-secondary">Cancelar</button>
-                </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 p-3">
+              <div>
+                <label className={CAMPO_LABEL}>Razão Social *</label>
+                <input value={dadosForm.razao_social} onChange={e => setDadosForm(p => ({ ...p, razao_social: e.target.value }))} className={INPUT} />
               </div>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Razão Social *</label>
-                    <input
-                      value={dadosForm.razao_social}
-                      onChange={e => setDadosForm(p => ({ ...p, razao_social: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Nome Fantasia</label>
-                    <input
-                      value={dadosForm.nome_fantasia}
-                      onChange={e => setDadosForm(p => ({ ...p, nome_fantasia: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">CNPJ *</label>
-                    <input
-                      value={dadosForm.cnpj}
-                      onChange={e => setDadosForm(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">CNAE Principal</label>
-                    <input
-                      value={dadosForm.cnae_principal}
-                      onChange={e => setDadosForm(p => ({ ...p, cnae_principal: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">CNAEs Secundários</label>
-                    <textarea
-                      value={dadosForm.cnaes_secundarios}
-                      onChange={e => setDadosForm(p => ({ ...p, cnaes_secundarios: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary resize-none"
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Endereço da Empresa</label>
-                    <input
-                      value={dadosForm.endereco_empresa}
-                      onChange={e => setDadosForm(p => ({ ...p, endereco_empresa: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Info Bancárias</label>
-                    <input
-                      value={dadosForm.info_bancarias}
-                      onChange={e => setDadosForm(p => ({ ...p, info_bancarias: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                </div>
+              <div>
+                <label className={CAMPO_LABEL}>Nome Fantasia</label>
+                <input value={dadosForm.nome_fantasia} onChange={e => setDadosForm(p => ({ ...p, nome_fantasia: e.target.value }))} className={INPUT} />
               </div>
-            </section>
+              <div>
+                <label className={CAMPO_LABEL}>CNPJ *</label>
+                <input value={dadosForm.cnpj} onChange={e => setDadosForm(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))} className={`${INPUT} font-mono`} />
+              </div>
+              <div>
+                <label className={CAMPO_LABEL}>CNAE Principal</label>
+                <input value={dadosForm.cnae_principal} onChange={e => setDadosForm(p => ({ ...p, cnae_principal: e.target.value }))} className={INPUT} />
+              </div>
+              <div className="col-span-2">
+                <label className={CAMPO_LABEL}>CNAEs Secundários</label>
+                <textarea value={dadosForm.cnaes_secundarios} onChange={e => setDadosForm(p => ({ ...p, cnaes_secundarios: e.target.value }))} className={`${INPUT} resize-none`} rows={2} />
+              </div>
+              <div>
+                <label className={CAMPO_LABEL}>Endereço da Empresa</label>
+                <input value={dadosForm.endereco_empresa} onChange={e => setDadosForm(p => ({ ...p, endereco_empresa: e.target.value }))} className={INPUT} />
+              </div>
+              <div>
+                <label className={CAMPO_LABEL}>Info Bancárias</label>
+                <input value={dadosForm.info_bancarias} onChange={e => setDadosForm(p => ({ ...p, info_bancarias: e.target.value }))} className={INPUT} />
+              </div>
+            </div>
           ) : (
-            <section className="bg-white border border-border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-text-primary">Dados da Empresa</h2>
-                <button onClick={startEditDados} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1 transition-colors">
-                  <Pencil className="w-4 h-4" /> Editar
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Razão Social" copyValue={empresa.razao_social}>{empresa.razao_social}</Field>
-                <Field label="Nome Fantasia">{empresa.nome_fantasia}</Field>
-                <Field label="CNPJ" copyValue={empresa.cnpj}>{formatCNPJ(empresa.cnpj)}</Field>
-                <Field label="CNAE Principal">{empresa.cnae_principal}</Field>
-                <div className="col-span-2">
-                  <Field label="CNAEs Secundários">{empresa.cnaes_secundarios}</Field>
-                </div>
-                <Field label="Endereço da Empresa">{empresa.endereco_empresa}</Field>
-                <Field label="Info Bancárias">{empresa.info_bancarias}</Field>
-              </div>
-            </section>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 p-3">
+              <Field label="Razão Social" copyValue={empresa.razao_social}>{empresa.razao_social}</Field>
+              <Field label="Nome Fantasia" copyValue={empresa.nome_fantasia ?? undefined}>{empresa.nome_fantasia}</Field>
+              <Field label="CNPJ" copyValue={empresa.cnpj} mono>{formatCNPJ(empresa.cnpj)}</Field>
+              <Field label="CNAE Principal" copyValue={empresa.cnae_principal ?? undefined}>{empresa.cnae_principal}</Field>
+              <Field label="CNAEs Secundários" copyValue={empresa.cnaes_secundarios ?? undefined} span>
+                <CnaesSecundarios texto={empresa.cnaes_secundarios} />
+              </Field>
+              <Field label="Endereço da Empresa" copyValue={empresa.endereco_empresa ?? undefined}>{empresa.endereco_empresa}</Field>
+              <Field label="Info Bancárias" copyValue={empresa.info_bancarias ?? undefined} mono>{empresa.info_bancarias}</Field>
+            </dl>
           )}
+
+          {/* Responsável */}
+          <CabecalhoSecao icone={<User className="w-3.5 h-3.5 text-text-muted" />} titulo="Responsável">
+            {isEditingResponsavel ? (
+              <>
+                <button onClick={handleSaveResponsavel} className="text-[11px] font-semibold text-btn-primary hover:underline">Salvar</button>
+                <button onClick={() => setIsEditingResponsavel(false)} className="text-[11px] text-text-secondary hover:text-text-primary">Cancelar</button>
+              </>
+            ) : (
+              <button onClick={startEditResponsavel} className={BOTAO_DISCRETO}><Pencil className="w-3 h-3" /> Editar</button>
+            )}
+          </CabecalhoSecao>
 
           {isEditingResponsavel ? (
-            <section className="bg-white border border-border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-text-primary">Responsável</h2>
-                <div className="flex gap-2">
-                  <button onClick={handleSaveResponsavel} className="text-sm text-btn-primary hover:underline font-medium">Salvar</button>
-                  <button onClick={() => setIsEditingResponsavel(false)} className="text-sm text-text-muted hover:text-text-secondary">Cancelar</button>
-                </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 p-3">
+              <div>
+                <label className={CAMPO_LABEL}>Nome Completo</label>
+                <input value={responsavelForm.nome_completo} onChange={e => setResponsavelForm(p => ({ ...p, nome_completo: e.target.value }))} className={INPUT} />
               </div>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Nome Completo</label>
-                    <input
-                      value={responsavelForm.nome_completo}
-                      onChange={e => setResponsavelForm(p => ({ ...p, nome_completo: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Nome da Mãe</label>
-                    <input
-                      value={responsavelForm.nome_mae}
-                      onChange={e => setResponsavelForm(p => ({ ...p, nome_mae: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">CPF</label>
-                    <input
-                      value={responsavelForm.cpf}
-                      onChange={e => setResponsavelForm(p => ({ ...p, cpf: maskCPF(e.target.value) }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Data de Nascimento</label>
-                    <input
-                      type="date"
-                      value={responsavelForm.data_nascimento}
-                      onChange={e => setResponsavelForm(p => ({ ...p, data_nascimento: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Endereço de Contato</label>
-                    <input
-                      value={responsavelForm.endereco}
-                      onChange={e => setResponsavelForm(p => ({ ...p, endereco: e.target.value }))}
-                      className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                    />
-                  </div>
-                </div>
+              <div>
+                <label className={CAMPO_LABEL}>Nome da Mãe</label>
+                <input value={responsavelForm.nome_mae} onChange={e => setResponsavelForm(p => ({ ...p, nome_mae: e.target.value }))} className={INPUT} />
               </div>
-            </section>
+              <div>
+                <label className={CAMPO_LABEL}>CPF</label>
+                <input value={responsavelForm.cpf} onChange={e => setResponsavelForm(p => ({ ...p, cpf: maskCPF(e.target.value) }))} className={`${INPUT} font-mono`} />
+              </div>
+              <div>
+                <label className={CAMPO_LABEL}>Data de Nascimento</label>
+                <input type="date" value={responsavelForm.data_nascimento} onChange={e => setResponsavelForm(p => ({ ...p, data_nascimento: e.target.value }))} className={`${INPUT} font-mono`} />
+              </div>
+              <div className="col-span-2">
+                <label className={CAMPO_LABEL}>Endereço de Contato</label>
+                <input value={responsavelForm.endereco} onChange={e => setResponsavelForm(p => ({ ...p, endereco: e.target.value }))} className={INPUT} />
+              </div>
+            </div>
           ) : (
-            <section className="bg-white border border-border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-text-primary">Responsável</h2>
-                <button onClick={startEditResponsavel} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1 transition-colors">
-                  <Pencil className="w-4 h-4" /> Editar
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Nome Completo" copyValue={empresa.nome_completo ?? undefined}>{empresa.nome_completo}</Field>
-                <Field label="Nome da Mãe" copyValue={empresa.nome_mae ?? undefined}>{empresa.nome_mae}</Field>
-                <Field label="CPF" copyValue={empresa.cpf ?? undefined}>{empresa.cpf ? formatCPF(empresa.cpf) : null}</Field>
-                <Field label="Data de Nascimento" copyValue={empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : undefined}>
-                  {empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : null}
-                </Field>
-                <Field label="Endereço de Contato">{empresa.endereco}</Field>
-              </div>
-            </section>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 p-3">
+              <Field label="Nome Completo" copyValue={empresa.nome_completo ?? undefined}>{empresa.nome_completo}</Field>
+              <Field label="Nome da Mãe" copyValue={empresa.nome_mae ?? undefined}>{empresa.nome_mae}</Field>
+              <Field label="CPF" copyValue={empresa.cpf ?? undefined} mono>{empresa.cpf ? formatCPF(empresa.cpf) : null}</Field>
+              <Field
+                label="Data de Nascimento"
+                copyValue={empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : undefined}
+                mono
+              >
+                {empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : null}
+              </Field>
+              <Field label="Endereço de Contato" copyValue={empresa.endereco ?? undefined} span>{empresa.endereco}</Field>
+            </dl>
           )}
-        </div>
 
-        {/* Checklist da empresa — vale para todas as plataformas */}
-        <div className="mb-8">
-          <Checklist empresaId={id} />
-        </div>
+          {/* Contato */}
+          <CabecalhoSecao icone={<Mail className="w-3.5 h-3.5 text-text-muted" />} titulo="Contato">
+            {isEditingContato ? (
+              <>
+                <button onClick={handleSaveContato} className="text-[11px] font-semibold text-btn-primary hover:underline">Salvar</button>
+                <button onClick={() => setIsEditingContato(false)} className="text-[11px] text-text-secondary hover:text-text-primary">Cancelar</button>
+              </>
+            ) : (
+              <button onClick={startEditContato} className={BOTAO_DISCRETO}><Pencil className="w-3 h-3" /> Editar</button>
+            )}
+          </CabecalhoSecao>
 
-        {/* Linha 2: Contato | Credenciais */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
           {isEditingContato ? (
-            <section className="bg-white border border-border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-text-primary">Contato</h2>
-                <div className="flex gap-2">
-                  <button onClick={handleSaveContato} className="text-sm text-btn-primary hover:underline font-medium">Salvar</button>
-                  <button onClick={() => setIsEditingContato(false)} className="text-sm text-text-muted hover:text-text-secondary">Cancelar</button>
-                </div>
+            <div className="grid grid-cols-3 gap-x-3 gap-y-2 p-3">
+              <div>
+                <label className={CAMPO_LABEL}>E-mails</label>
+                <input value={contatoForm.emails} onChange={e => setContatoForm(p => ({ ...p, emails: e.target.value }))} placeholder="email@empresa.com" className={INPUT} />
               </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">E-mails</label>
-                  <input
-                    value={contatoForm.emails}
-                    onChange={e => setContatoForm(p => ({ ...p, emails: e.target.value }))}
-                    placeholder="email@empresa.com"
-                    className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">WhatsApp / Telefone</label>
-                  <input
-                    value={contatoForm.whatsapp}
-                    onChange={e => setContatoForm(p => ({ ...p, whatsapp: e.target.value }))}
-                    placeholder="(00) 00000-0000"
-                    className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-text-muted uppercase mb-1.5 font-medium">Site</label>
-                  <input
-                    value={contatoForm.site}
-                    onChange={e => setContatoForm(p => ({ ...p, site: e.target.value }))}
-                    placeholder="https://empresa.com"
-                    className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
-                  />
-                </div>
+              <div>
+                <label className={CAMPO_LABEL}>WhatsApp / Telefone</label>
+                <input value={contatoForm.whatsapp} onChange={e => setContatoForm(p => ({ ...p, whatsapp: e.target.value }))} placeholder="(00) 00000-0000" className={INPUT} />
               </div>
-            </section>
+              <div>
+                <label className={CAMPO_LABEL}>Site</label>
+                <input value={contatoForm.site} onChange={e => setContatoForm(p => ({ ...p, site: e.target.value }))} placeholder="https://empresa.com" className={INPUT} />
+              </div>
+            </div>
           ) : (
-            <section className="bg-white border border-border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-text-primary">Contato</h2>
-                <button onClick={startEditContato} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1 transition-colors">
-                  <Pencil className="w-4 h-4" /> Editar
-                </button>
-              </div>
-              <div className="space-y-5">
-                <Field label="E-mails" copyValue={empresa.emails ?? undefined}>
-                  {empresa.emails ? (
-                    <a href={`mailto:${empresa.emails}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
-                      <Mail className="w-5 h-5" /> {empresa.emails}
-                    </a>
-                  ) : null}
-                </Field>
-                <Field label="WhatsApp / Telefone" copyValue={empresa.whatsapp ?? undefined}>
-                  {empresa.whatsapp ? (
-                    <span className="inline-flex items-center gap-3 flex-wrap">
-                      <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
-                        <Phone className="w-5 h-5" /> {empresa.whatsapp}
+            <dl className="grid grid-cols-3 gap-x-4 gap-y-2 p-3">
+              <div data-campo>
+                <dt className={CAMPO_LABEL}>E-mails</dt>
+                <dd className="flex items-start gap-1">
+                  <div className="flex-1 min-w-0 text-[13px] leading-[1.35]">
+                    {empresa.emails ? (
+                      <a href={`mailto:${empresa.emails}`} className="text-btn-primary hover:underline inline-flex items-center gap-1.5 min-w-0 max-w-full">
+                        <Mail className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{empresa.emails}</span>
                       </a>
-                      {temWhatsapp(empresa.whatsapp) && (
-                        <button
-                          onClick={() => zap.abrir(empresa.razao_social, empresa.whatsapp!)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors"
-                        >
-                          <MessageCircle className="w-4 h-4" /> Abrir conversa
-                        </button>
-                      )}
-                    </span>
-                  ) : null}
-                </Field>
-                <Field label="Site" copyValue={empresa.site ?? undefined}>
-                  {empresa.site ? (
-                    <a href={empresa.site.startsWith('http') ? empresa.site : `https://${empresa.site}`} target="_blank" rel="noopener noreferrer" className="text-btn-primary hover:underline inline-flex items-center gap-2">
-                      <Globe className="w-5 h-5" /> {empresa.site}
-                    </a>
-                  ) : null}
-                </Field>
+                    ) : <span className="text-text-muted">—</span>}
+                  </div>
+                  {empresa.emails && <CopyBtn value={empresa.emails} />}
+                </dd>
               </div>
-            </section>
-          )}
 
-          <section className="bg-white border border-border rounded-xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-text-primary inline-flex items-center gap-2"><KeyRound className="w-5 h-5" /> Credenciais</h2>
-              <button onClick={() => openCredForm()} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1.5 transition-colors">
-                <Plus className="w-4 h-4" /> Adicionar
-              </button>
-            </div>
-
-            {credenciais.length === 0 && !showCredForm && <p className="text-base text-text-muted">Nenhuma credencial salva.</p>}
-
-            <div className="space-y-4">
-              {credenciais.map(c => (
-                <div key={c.id} className="group bg-[#f4f5f7] rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-base font-medium text-text-primary">{c.titulo}</span>
-                    <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openCredForm(c)} className="p-1.5 text-text-muted hover:text-text-secondary transition-colors" title="Editar">
-                        <KeyRound className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDeleteCred(c.id)} className="p-1.5 text-text-muted hover:text-red-400 transition-colors" title="Excluir">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-text-muted uppercase mb-1">Usuário</p>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-text-primary truncate">{c.usuario}</span>
-                        <button onClick={() => copiar(c.usuario)} className="p-1 text-text-muted hover:text-text-secondary transition-colors" title="Copiar"><Copy className="w-4 h-4" /></button>
-                      </div>
-                    </div>
-                    {c.senha && (
-                      <div>
-                        <p className="text-xs text-text-muted uppercase mb-1">Senha</p>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm text-text-primary font-mono">{senhasVisiveis.has(c.id) ? c.senha : '••••••••'}</span>
-                          <button onClick={() => toggleSenha(c.id)} className="p-1 text-text-muted hover:text-text-secondary transition-colors">
-                            {senhasVisiveis.has(c.id) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <div data-campo>
+                <dt className={CAMPO_LABEL}>WhatsApp / Telefone</dt>
+                <dd className="flex items-start gap-1">
+                  <div className="flex-1 min-w-0 text-[13px] leading-[1.35]">
+                    {empresa.whatsapp ? (
+                      <span className="inline-flex items-center gap-2 flex-wrap max-w-full">
+                        <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} className="text-btn-primary hover:underline inline-flex items-center gap-1.5 font-mono max-w-full">
+                          <Phone className="w-3.5 h-3.5 shrink-0" /> {empresa.whatsapp}
+                        </a>
+                        {temWhatsapp(empresa.whatsapp) && (
+                          <button
+                            onClick={() => zap.abrir(empresa.razao_social, empresa.whatsapp!)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors"
+                          >
+                            <MessageCircle className="w-3 h-3" /> Abrir conversa
                           </button>
-                          <button onClick={() => copiar(c.senha!)} className="p-1 text-text-muted hover:text-text-secondary transition-colors" title="Copiar"><Copy className="w-4 h-4" /></button>
-                        </div>
-                      </div>
-                    )}
+                        )}
+                      </span>
+                    ) : <span className="text-text-muted">—</span>}
                   </div>
-                  {c.url && (
-                    <a href={c.url.startsWith('http') ? c.url : `https://${c.url}`} target="_blank" rel="noopener noreferrer" className="text-sm text-btn-primary hover:underline inline-flex items-center gap-1.5">
-                      <ExternalLink className="w-4 h-4" /> {c.url}
-                    </a>
-                  )}
-                  {c.notas && <p className="text-sm text-text-muted">{c.notas}</p>}
-                </div>
-              ))}
-            </div>
+                  {empresa.whatsapp && <CopyBtn value={empresa.whatsapp} />}
+                </dd>
+              </div>
+
+              <div data-campo>
+                <dt className={CAMPO_LABEL}>Site</dt>
+                <dd className="flex items-start gap-1">
+                  <div className="flex-1 min-w-0 text-[13px] leading-[1.35]">
+                    {empresa.site ? (
+                      <a href={empresa.site.startsWith('http') ? empresa.site : `https://${empresa.site}`} target="_blank" rel="noopener noreferrer" className="text-btn-primary hover:underline inline-flex items-center gap-1.5 min-w-0 max-w-full">
+                        <Globe className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{empresa.site}</span>
+                      </a>
+                    ) : <span className="text-text-muted">—</span>}
+                  </div>
+                  {empresa.site && <CopyBtn value={empresa.site} />}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </Painel>
+
+        {/* ── Coluna B — o que falta e como entrar ───────────────────────── */}
+        <div className="flex flex-col gap-3 min-w-0 xl:h-full xl:min-h-0">
+          <Checklist empresaId={id} />
+
+          <Painel className="xl:flex-1 xl:min-h-0 xl:flex xl:flex-col">
+            <CabecalhoSecao
+              icone={<KeyRound className="w-3.5 h-3.5 text-text-muted" />}
+              titulo="Credenciais"
+              contagem={credenciais.length > 0 ? <span className="text-[11px] font-mono text-text-secondary">{credenciais.length}</span> : undefined}
+            >
+              <button onClick={() => openCredForm()} className={BOTAO_DISCRETO}><Plus className="w-3 h-3" /> Adicionar</button>
+            </CabecalhoSecao>
+
+            {credenciais.length === 0 && !showCredForm && <p className="text-[12px] text-text-secondary px-3 py-2.5">Nenhuma credencial salva.</p>}
+
+            {credenciais.length > 0 && (
+              <div className="scroll-fino max-h-[46vh] xl:max-h-none xl:flex-1 xl:min-h-0 overflow-y-auto divide-y divide-hairline">
+                {credenciais.map(c => (
+                  <div key={c.id} className="group px-3 py-2 hover:bg-surface-sunken/60 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] font-semibold text-text-primary truncate">{c.titulo}</span>
+                      {c.url && (
+                        <a
+                          href={c.url.startsWith('http') ? c.url : `https://${c.url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={c.url}
+                          className="text-btn-primary hover:text-btn-primary-hover shrink-0"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      <div className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openCredForm(c)} className="p-0.5 text-text-secondary hover:text-text-primary transition-colors" title="Editar">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDeleteCred(c.id)} className="p-0.5 text-text-secondary hover:text-red-500 transition-colors" title="Excluir">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-0.5 flex items-center gap-x-4 gap-y-0.5 flex-wrap text-[12px]">
+                      <span className="inline-flex items-center gap-1 min-w-0">
+                        <span className="text-[10px] uppercase tracking-[0.07em] text-text-secondary">usuário</span>
+                        <span className="font-mono text-text-primary truncate min-w-0">{c.usuario}</span>
+                        <CopyBtn value={c.usuario} titulo="Copiar usuário" />
+                      </span>
+                      {c.senha && (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="text-[10px] uppercase tracking-[0.07em] text-text-secondary">senha</span>
+                          <span className="font-mono text-text-primary">{senhasVisiveis.has(c.id) ? c.senha : '••••••••'}</span>
+                          <button onClick={() => toggleSenha(c.id)} className="p-0.5 text-text-secondary hover:text-btn-primary transition-colors" title={senhasVisiveis.has(c.id) ? 'Ocultar' : 'Mostrar'}>
+                            {senhasVisiveis.has(c.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                          <CopyBtn value={c.senha} titulo="Copiar senha" />
+                        </span>
+                      )}
+                    </div>
+
+                    {c.notas && <p className="mt-0.5 text-[11px] text-text-secondary leading-tight">{c.notas}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {showCredForm && (
-              <form onSubmit={handleSaveCred} className="mt-4 bg-[#f4f5f7] rounded-lg p-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleSaveCred} className="border-t border-hairline bg-surface-sunken/60 p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                   <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5">Título *</label>
-                    <input required value={credForm.titulo} onChange={e => setCredForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Ex: Portal do Fornecedor" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <label className={CAMPO_LABEL}>Título *</label>
+                    <input required value={credForm.titulo} onChange={e => setCredForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Ex: Portal do Fornecedor" className={`${INPUT} bg-white`} />
                   </div>
                   <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5">URL</label>
-                    <input value={credForm.url} onChange={e => setCredForm(p => ({ ...p, url: e.target.value }))} placeholder="https://site.com/login" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <label className={CAMPO_LABEL}>URL</label>
+                    <input value={credForm.url} onChange={e => setCredForm(p => ({ ...p, url: e.target.value }))} placeholder="https://site.com/login" className={`${INPUT} bg-white`} />
                   </div>
                   <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5">Usuário / E-mail *</label>
-                    <input required value={credForm.usuario} onChange={e => setCredForm(p => ({ ...p, usuario: e.target.value }))} placeholder="usuario@email.com" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <label className={CAMPO_LABEL}>Usuário / E-mail *</label>
+                    <input required value={credForm.usuario} onChange={e => setCredForm(p => ({ ...p, usuario: e.target.value }))} placeholder="usuario@email.com" className={`${INPUT} bg-white`} />
                   </div>
                   <div>
-                    <label className="block text-xs text-text-muted uppercase mb-1.5">Senha</label>
-                    <input value={credForm.senha} onChange={e => setCredForm(p => ({ ...p, senha: e.target.value }))} placeholder="••••••••" className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <label className={CAMPO_LABEL}>Senha</label>
+                    <input value={credForm.senha} onChange={e => setCredForm(p => ({ ...p, senha: e.target.value }))} placeholder="••••••••" className={`${INPUT} bg-white font-mono`} />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs text-text-muted uppercase mb-1.5">Notas</label>
-                    <input value={credForm.notas} onChange={e => setCredForm(p => ({ ...p, notas: e.target.value }))} placeholder="Observações..." className="w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary" />
+                    <label className={CAMPO_LABEL}>Notas</label>
+                    <input value={credForm.notas} onChange={e => setCredForm(p => ({ ...p, notas: e.target.value }))} placeholder="Observações..." className={`${INPUT} bg-white`} />
                   </div>
                 </div>
-                <div className="flex justify-end gap-3">
-                  <button type="button" onClick={() => { setShowCredForm(false); setEditingCred(null) }} className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary">Cancelar</button>
-                  <button type="submit" className="px-5 py-2 bg-btn-primary text-white rounded-lg text-sm font-medium hover:bg-btn-primary-hover transition-colors">{editingCred ? 'Salvar' : 'Adicionar'}</button>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => { setShowCredForm(false); setEditingCred(null) }} className="px-2.5 py-1 text-[12px] text-text-secondary hover:text-text-primary">Cancelar</button>
+                  <button type="submit" className="px-3 py-1 bg-btn-primary text-white rounded text-[12px] font-semibold hover:bg-btn-primary-hover transition-colors">{editingCred ? 'Salvar' : 'Adicionar'}</button>
                 </div>
               </form>
             )}
-          </section>
+          </Painel>
         </div>
 
-        {/* Linha 3: Comentários | Anexos */}
-        <div className="grid grid-cols-2 gap-8">
-          <section className="bg-white border border-border rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-5">
-              Comentários{plataformaNome && <span className="text-sm font-normal text-text-muted ml-2">— {plataformaNome}</span>}
-            </h2>
+        {/* ── Coluna C — histórico e documentos ──────────────────────────── */}
+        <div className="flex flex-col gap-3 min-w-0 xl:h-full xl:min-h-0">
+          <Painel className="xl:flex-1 xl:min-h-0 xl:flex xl:flex-col">
+            <CabecalhoSecao
+              icone={<MessageSquare className="w-3.5 h-3.5 text-text-muted" />}
+              titulo="Comentários"
+              contagem={plataformaNome ? <span className="text-[11px] text-text-secondary truncate">— {plataformaNome}</span> : undefined}
+            />
             {!plataformaId ? (
-              <p className="text-base text-text-muted">Acesse a empresa pelo board de uma plataforma para ver e adicionar comentários.</p>
-            ) : (<>
-            <div className="space-y-4 mb-5 max-h-96 overflow-y-auto">
-              {comentarios.length === 0 && <p className="text-base text-text-muted">Nenhum comentário ainda.</p>}
-              {comentarios.map(c => (
-                <div key={c.id} className={`group flex gap-3 rounded-lg p-2 -mx-2 transition-colors ${c.red_flag ? 'bg-red-50 border border-red-200' : ''}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 mt-0.5 ${c.red_flag ? 'bg-red-100 text-red-600' : 'bg-[#f4f5f7] text-text-muted'}`}>
-                    {c.autor[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-text-secondary">{c.autor}</span>
-                      <span className="text-sm text-text-muted">{timeAgo(c.created_at)}</span>
-                      {c.red_flag && (
-                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-red-600 uppercase tracking-wide">
-                          <Flag className="w-2.5 h-2.5 fill-red-500" />
-                          Red Flag
-                        </span>
-                      )}
-                      <div className="ml-auto flex items-center gap-1">
-                        <button
-                          onClick={() => handleToggleRedFlag(c)}
-                          title={c.red_flag ? 'Remover red flag' : 'Marcar como red flag'}
-                          className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-all ${
-                            c.red_flag
-                              ? 'text-red-500 hover:text-red-700 opacity-100'
-                              : 'text-text-muted hover:text-red-500'
-                          }`}
-                        >
-                          <Flag className={`w-4 h-4 ${c.red_flag ? 'fill-red-500' : ''}`} />
-                        </button>
-                        <button onClick={() => handleDeleteComentario(c.id)} className="opacity-0 group-hover:opacity-100 p-1 text-text-muted hover:text-red-500 transition-all">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+              <p className="text-[12px] text-text-secondary px-3 py-2.5">Acesse a empresa pelo board de uma plataforma para ver e adicionar comentários.</p>
+            ) : (
+              <>
+                <div className="scroll-fino max-h-[46vh] xl:max-h-none xl:flex-1 xl:min-h-0 overflow-y-auto divide-y divide-hairline">
+                  {comentarios.length === 0 && <p className="text-[12px] text-text-secondary px-3 py-2.5">Nenhum comentário ainda.</p>}
+                  {comentarios.map(c => (
+                    <div key={c.id} className={`group flex gap-2 px-3 py-1.5 transition-colors ${c.red_flag ? 'bg-red-50' : 'hover:bg-surface-sunken/60'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5 ${c.red_flag ? 'bg-red-100 text-red-600' : 'bg-surface-sunken text-text-secondary'}`}>
+                        {c.autor[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-semibold text-text-secondary capitalize">{c.autor}</span>
+                          <span className="text-[11px] text-text-secondary">{timeAgo(c.created_at)}</span>
+                          {c.red_flag && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-600 uppercase tracking-wide">
+                              <Flag className="w-2.5 h-2.5 fill-red-500" /> Red flag
+                            </span>
+                          )}
+                          <div className="ml-auto flex items-center gap-0.5">
+                            <button
+                              onClick={() => handleToggleRedFlag(c)}
+                              title={c.red_flag ? 'Remover red flag' : 'Marcar como red flag'}
+                              className={`p-0.5 rounded transition-all ${c.red_flag ? 'text-red-500 hover:text-red-700 opacity-100' : 'opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-500'}`}
+                            >
+                              <Flag className={`w-3.5 h-3.5 ${c.red_flag ? 'fill-red-500' : ''}`} />
+                            </button>
+                            <button onClick={() => handleDeleteComentario(c.id)} title="Excluir" className="opacity-0 group-hover:opacity-100 p-0.5 text-text-secondary hover:text-red-500 transition-all">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-[12px] leading-[1.4] text-text-primary whitespace-pre-wrap break-words">{c.texto}</p>
                       </div>
                     </div>
-                    <p className="text-base text-text-primary mt-1 whitespace-pre-wrap">{c.texto}</p>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <form onSubmit={handleEnviarComentario} className="flex gap-3">
-              <input
-                value={novoComentario}
-                onChange={e => setNovoComentario(e.target.value)}
-                placeholder="Escrever comentário..."
-                className="flex-1 px-4 py-2.5 bg-[#f4f5f7] border border-border rounded-lg text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary transition-colors"
-              />
-              <button type="submit" disabled={!novoComentario.trim()} className="p-2.5 bg-btn-primary text-white rounded-lg hover:bg-btn-primary-hover transition-colors disabled:opacity-30">
-                <Send className="w-5 h-5" />
-              </button>
-            </form>
-            </>)}
-          </section>
+                <form onSubmit={handleEnviarComentario} className="flex gap-2 border-t border-hairline p-2">
+                  <input
+                    value={novoComentario}
+                    onChange={e => setNovoComentario(e.target.value)}
+                    placeholder="Escrever comentário..."
+                    className={INPUT}
+                  />
+                  <button type="submit" disabled={!novoComentario.trim()} className="shrink-0 px-2 bg-btn-primary text-white rounded hover:bg-btn-primary-hover transition-colors disabled:opacity-30">
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </>
+            )}
+          </Painel>
 
-          <section className="bg-white border border-border rounded-xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-text-primary">Anexos</h2>
-              <button onClick={() => fileRef.current?.click()} disabled={uploading} className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1.5 transition-colors">
-                <Upload className="w-4 h-4" /> {uploading ? 'Enviando...' : 'Enviar'}
+          <Painel>
+            <CabecalhoSecao
+              icone={<Paperclip className="w-3.5 h-3.5 text-text-muted" />}
+              titulo="Anexos"
+              contagem={anexos.length > 0 ? <span className="text-[11px] font-mono text-text-secondary">{anexos.length}</span> : undefined}
+            >
+              <button onClick={() => fileRef.current?.click()} disabled={uploading} className={BOTAO_DISCRETO}>
+                <Upload className="w-3 h-3" /> {uploading ? 'Enviando...' : 'Enviar'}
               </button>
               <input ref={fileRef} type="file" onChange={handleUploadAnexo} className="hidden" />
-            </div>
-            <div className="space-y-3">
-              {anexos.length === 0 && <p className="text-base text-text-muted">Nenhum anexo.</p>}
-              {anexos.map(a => (
-                <div key={a.id} className="group flex items-center gap-3 p-3 rounded-lg hover:bg-[#f4f5f7] transition-colors">
-                  <div className="w-10 h-10 rounded-lg bg-[#f4f5f7] flex items-center justify-center shrink-0">
-                    {a.tipo?.startsWith('image/') ? <ImageIcon className="w-5 h-5 text-text-muted" /> : <FileText className="w-5 h-5 text-text-muted" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-sm text-text-primary hover:text-accent truncate block">{a.nome}</a>
-                    {a.tamanho && <p className="text-xs text-text-muted">{formatBytes(a.tamanho)}</p>}
-                  </div>
-                  <button onClick={() => handleDeleteAnexo(a)} className="opacity-0 group-hover:opacity-100 p-1.5 text-text-muted hover:text-red-500 transition-all">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
+            </CabecalhoSecao>
 
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="mt-4 w-full py-5 border-2 border-dashed border-border hover:border-btn-primary rounded-lg flex flex-col items-center gap-2 text-text-muted hover:text-text-secondary transition-colors"
-            >
-              <Paperclip className="w-5 h-5" />
-              <span className="text-sm">Anexar arquivo</span>
-            </button>
-          </section>
+            {anexos.length === 0 ? (
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="w-full m-0 py-3 flex items-center justify-center gap-2 text-[12px] text-text-secondary hover:text-btn-primary hover:bg-surface-sunken/60 transition-colors"
+              >
+                <Paperclip className="w-3.5 h-3.5" /> Anexar arquivo
+              </button>
+            ) : (
+              <div className="scroll-fino max-h-[26vh] overflow-y-auto divide-y divide-hairline">
+                {anexos.map(a => (
+                  <div key={a.id} className="group flex items-center gap-2 px-3 py-1.5 hover:bg-surface-sunken/60 transition-colors">
+                    {a.tipo?.startsWith('image/')
+                      ? <ImageIcon className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                      : <FileText className="w-3.5 h-3.5 text-text-muted shrink-0" />}
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 text-[12px] text-text-primary hover:text-btn-primary truncate">{a.nome}</a>
+                    {a.tamanho && <span className="text-[11px] font-mono text-text-secondary shrink-0">{formatBytes(a.tamanho)}</span>}
+                    <button onClick={() => handleDeleteAnexo(a)} title="Excluir" className="opacity-0 group-hover:opacity-100 p-0.5 text-text-secondary hover:text-red-500 transition-all shrink-0">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Painel>
         </div>
-      </div>
+      </main>
 
       {zap.alvo && (
         <ZapPanel empresa={zap.alvo.empresa} whatsapp={zap.alvo.whatsapp} onClose={zap.fechar} />
