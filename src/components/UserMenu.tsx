@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { Usuario } from '@/types/kanban'
-import { LogOut, Users, KeyRound, X, Plus, UserCheck, UserX, Loader2 } from 'lucide-react'
+import { LogOut, Users, KeyRound, X, Plus, UserCheck, UserX, Loader2, ListChecks } from 'lucide-react'
 
 export function UserMenu() {
   const { usuario, sair } = useAuth()
@@ -42,6 +43,13 @@ export function UserMenu() {
               >
                 <Users className="w-4 h-4 text-text-muted" /> Gerenciar usuários
               </button>
+              <Link
+                href="/checklist"
+                onClick={() => setAberto(false)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#f4f5f7] transition-colors"
+              >
+                <ListChecks className="w-4 h-4 text-text-muted" /> Checklist padrão
+              </Link>
               <div className="h-px bg-border my-1" />
               <button
                 onClick={sair}

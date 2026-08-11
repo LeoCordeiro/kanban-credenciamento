@@ -74,6 +74,13 @@ export interface ChecklistItem {
   created_at: string
 }
 
+export interface ChecklistModeloItem {
+  id: string
+  titulo: string
+  ordem: number
+  created_at: string
+}
+
 export interface Usuario {
   id: string
   nome: string

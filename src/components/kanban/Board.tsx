@@ -355,37 +355,41 @@ export function Board() {
     <div className="flex-1 flex flex-col" style={{ backgroundColor: bgColor }}>
       {/* Platform bar */}
       <div className="px-6 py-4" style={{ backgroundColor: darken(bgColor) + '99' }}>
-        {/* Plataformas */}
-        <div className="flex items-start gap-2 mb-3 overflow-x-auto">
-          <PlataformaTabs
-            plataformas={plataformas}
-            selectedId={selectedId}
-            count={items.length}
-            onSelect={setSelectedId}
-            onEdit={p => { setEditingPlat(p); setPlatNome(p.nome); setShowPlatForm(true) }}
-            onDelete={handleDeletePlat}
-            onReorder={handleReorderPlataformas}
-          />
-          <button
-            onClick={() => { setEditingPlat(null); setPlatNome(''); setShowPlatForm(true) }}
-            className="px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/15 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 font-medium"
-          >
-            <Plus className="w-4 h-4" /> Plataforma
-          </button>
-
-          <div className="flex-1" />
-
-          {selectedId && (
-            <button onClick={openAddExisting} className="flex items-center gap-1.5 px-3 py-2 text-sm text-white/60 hover:text-white hover:bg-white/15 rounded-lg transition-colors font-medium" title="Vincular empresa existente">
-              <Link2 className="w-4 h-4" /> Vincular
+        {/* Plataformas.
+            Só a faixa de abas rola: `overflow-x-auto` também clipa na vertical,
+            e com os controles dentro dele o menu do usuário abria cortado. */}
+        <div className="flex items-start gap-2 mb-3">
+          <div className="flex items-start gap-2 min-w-0 flex-1 overflow-x-auto">
+            <PlataformaTabs
+              plataformas={plataformas}
+              selectedId={selectedId}
+              count={items.length}
+              onSelect={setSelectedId}
+              onEdit={p => { setEditingPlat(p); setPlatNome(p.nome); setShowPlatForm(true) }}
+              onDelete={handleDeletePlat}
+              onReorder={handleReorderPlataformas}
+            />
+            <button
+              onClick={() => { setEditingPlat(null); setPlatNome(''); setShowPlatForm(true) }}
+              className="px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/15 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 font-medium"
+            >
+              <Plus className="w-4 h-4" /> Plataforma
             </button>
-          )}
+          </div>
 
-          <button onClick={() => setShowBgPicker(true)} className="p-2 text-white/50 hover:text-white hover:bg-white/15 rounded-lg transition-colors" title="Cor de fundo">
-            <Palette className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {selectedId && (
+              <button onClick={openAddExisting} className="flex items-center gap-1.5 px-3 py-2 text-sm text-white/60 hover:text-white hover:bg-white/15 rounded-lg transition-colors font-medium" title="Vincular empresa existente">
+                <Link2 className="w-4 h-4" /> Vincular
+              </button>
+            )}
 
-          <UserMenu />
+            <button onClick={() => setShowBgPicker(true)} className="p-2 text-white/50 hover:text-white hover:bg-white/15 rounded-lg transition-colors" title="Cor de fundo">
+              <Palette className="w-5 h-5" />
+            </button>
+
+            <UserMenu />
+          </div>
         </div>
 
         {/* Busca centralizada */}

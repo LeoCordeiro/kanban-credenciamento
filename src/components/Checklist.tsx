@@ -60,6 +60,21 @@ export function Checklist({ empresaId }: { empresaId: string }) {
     await supabase.from('checklist_itens').delete().eq('id', id)
   }
 
+  /** Marca tudo que falta; com tudo já feito, o mesmo botão desmarca. */
+  async function alternarTodos() {
+    const marcar = itens.some(i => !i.concluido)
+    const alvos = itens.filter(i => i.concluido !== marcar).map(i => i.id)
+    if (alvos.length === 0) return
+
+    const patch = {
+      concluido: marcar,
+      concluido_em: marcar ? new Date().toISOString() : null,
+      concluido_por: marcar ? usuario?.nome ?? null : null,
+    }
+    setItens(prev => prev.map(i => alvos.includes(i.id) ? { ...i, ...patch } : i))
+    await supabase.from('checklist_itens').update(patch).in('id', alvos)
+  }
+
   const feitos = itens.filter(i => i.concluido).length
   const total = itens.length
   const pct = total ? Math.round((feitos / total) * 100) : 0
@@ -72,6 +87,15 @@ export function Checklist({ empresaId }: { empresaId: string }) {
         <ListChecks className="w-3.5 h-3.5 text-text-muted" />
         <h2 className="text-base font-semibold text-text-primary">Checklist</h2>
         <div className="ml-auto flex items-center gap-2">
+          {total > 0 && (
+            <button
+              onClick={alternarTodos}
+              className="text-xs font-medium text-btn-primary hover:underline shrink-0"
+              title={completo ? 'Desmarcar todos os itens' : 'Marcar todos os itens como feitos'}
+            >
+              {completo ? 'Desmarcar todos' : 'Marcar todos'}
+            </button>
+          )}
           {/* Barra de progresso na própria linha do título: informa o mesmo
               sem gastar uma faixa de altura só para ela. */}
           <div className="w-24 h-1 bg-[#f4f5f7] rounded-full overflow-hidden">
