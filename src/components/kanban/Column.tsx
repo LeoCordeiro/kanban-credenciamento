@@ -12,9 +12,10 @@ interface Props {
   onAddCard: () => void
   onEditCard: (empresaId: string) => void
   onRemoveCard: (epId: string) => void
+  onAbrirZap: (empresa: string, whatsapp: string) => void
 }
 
-export function Column({ coluna, items, plataformaId, onAddCard, onEditCard, onRemoveCard }: Props) {
+export function Column({ coluna, items, plataformaId, onAddCard, onEditCard, onRemoveCard, onAbrirZap }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.id })
 
   return (
@@ -46,6 +47,7 @@ export function Column({ coluna, items, plataformaId, onAddCard, onEditCard, onR
               checklist={item.checklist}
               onEdit={() => onEditCard(item.empresa.id)}
               onRemove={() => onRemoveCard(item.epId)}
+              onAbrirZap={() => onAbrirZap(item.empresa.razao_social, item.empresa.whatsapp ?? '')}
             />
           ))}
         </div>

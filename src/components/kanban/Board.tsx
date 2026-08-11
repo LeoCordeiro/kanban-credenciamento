@@ -10,6 +10,7 @@ import { Card } from './Card'
 import { CardForm } from './CardForm'
 import { PlataformaTabs } from './PlataformaTabs'
 import { UserMenu } from '../UserMenu'
+import { ZapPanel, useZapPanel } from '../ZapPanel'
 import { Search, Plus, X, Palette, Link2 } from 'lucide-react'
 
 const BG_COLORS = [
@@ -59,6 +60,8 @@ export function Board() {
   const [showAddExisting, setShowAddExisting] = useState(false)
   const [existingEmpresas, setExistingEmpresas] = useState<Empresa[]>([])
   const [existingSearch, setExistingSearch] = useState('')
+
+  const zap = useZapPanel()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -444,6 +447,7 @@ export function Board() {
                 onAddCard={() => handleAddCard(col.id)}
                 onEditCard={handleEditCard}
                 onRemoveCard={handleRemoveCard}
+                onAbrirZap={zap.abrir}
               />
             ))}
           </div>
@@ -451,6 +455,10 @@ export function Board() {
             {activeItem ? <Card empresa={activeItem.empresa} dragId={activeItem.epId} overlay /> : null}
           </DragOverlay>
         </DndContext>
+      )}
+
+      {zap.alvo && (
+        <ZapPanel empresa={zap.alvo.empresa} whatsapp={zap.alvo.whatsapp} onClose={zap.fechar} />
       )}
 
       {showForm && (

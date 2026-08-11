@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Empresa, ChecklistResumo } from '@/types/kanban'
-import { GripVertical, Pencil, Trash2, Globe, Mail, Phone, Flag, ListChecks } from 'lucide-react'
+import { GripVertical, Pencil, Trash2, Globe, Mail, Phone, Flag, ListChecks, MessageCircle } from 'lucide-react'
+import { temWhatsapp } from '../ZapPanel'
 
 interface Props {
   empresa: Empresa
@@ -16,6 +17,7 @@ interface Props {
   overlay?: boolean
   onEdit?: () => void
   onRemove?: () => void
+  onAbrirZap?: () => void
 }
 
 function formatCNPJ(cnpj: string) {
@@ -24,7 +26,7 @@ function formatCNPJ(cnpj: string) {
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
 
-export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, overlay, onEdit, onRemove }: Props) {
+export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, overlay, onEdit, onRemove, onAbrirZap }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId })
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
@@ -138,10 +140,21 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
               </a>
             )}
             {empresa.whatsapp && (
-              <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[11px] text-accent hover:text-accent-hover">
-                <Phone className="w-3 h-3 shrink-0" />
-                <span>{empresa.whatsapp}</span>
-              </a>
+              <span className="flex items-center gap-1">
+                <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[11px] text-accent hover:text-accent-hover">
+                  <Phone className="w-3 h-3 shrink-0" />
+                  <span>{empresa.whatsapp}</span>
+                </a>
+                {onAbrirZap && temWhatsapp(empresa.whatsapp) && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onAbrirZap() }}
+                    title="Abrir conversa no ZapZap"
+                    className="p-0.5 rounded text-green-600 hover:bg-green-50 transition-colors"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </span>
             )}
             {empresa.site && (
               <a href={empresa.site.startsWith('http') ? empresa.site : `https://${empresa.site}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[11px] text-accent hover:text-accent-hover truncate max-w-full">

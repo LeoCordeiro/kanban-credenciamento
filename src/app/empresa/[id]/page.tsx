@@ -6,7 +6,9 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Empresa, Anexo, Comentario, Credencial, Plataforma, COLUNAS } from '@/types/kanban'
 import { Checklist } from '@/components/Checklist'
+import { ZapPanel, useZapPanel, temWhatsapp } from '@/components/ZapPanel'
 import { useAuth } from '@/lib/auth'
+import { MessageCircle } from 'lucide-react'
 import { ArrowLeft, Upload, FileText, Trash2, Send, ImageIcon, Paperclip, Globe, Mail, Phone, KeyRound, Plus, Eye, EyeOff, Copy, ExternalLink, Pencil, Flag } from 'lucide-react'
 
 function formatCNPJ(cnpj: string) {
@@ -78,6 +80,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   const searchParams = useSearchParams()
   const plataformaId = searchParams.get('plataforma')
   const { usuario } = useAuth()
+  const zap = useZapPanel()
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [plataformaNome, setPlataformaNome] = useState<string | null>(null)
   const [anexos, setAnexos] = useState<Anexo[]>([])
@@ -648,9 +651,19 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                 </Field>
                 <Field label="WhatsApp / Telefone" copyValue={empresa.whatsapp ?? undefined}>
                   {empresa.whatsapp ? (
-                    <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
-                      <Phone className="w-5 h-5" /> {empresa.whatsapp}
-                    </a>
+                    <span className="inline-flex items-center gap-3 flex-wrap">
+                      <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} className="text-btn-primary hover:underline inline-flex items-center gap-2">
+                        <Phone className="w-5 h-5" /> {empresa.whatsapp}
+                      </a>
+                      {temWhatsapp(empresa.whatsapp) && (
+                        <button
+                          onClick={() => zap.abrir(empresa.razao_social, empresa.whatsapp!)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors"
+                        >
+                          <MessageCircle className="w-4 h-4" /> Abrir conversa
+                        </button>
+                      )}
+                    </span>
                   ) : null}
                 </Field>
                 <Field label="Site" copyValue={empresa.site ?? undefined}>
@@ -850,6 +863,10 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
           </section>
         </div>
       </div>
+
+      {zap.alvo && (
+        <ZapPanel empresa={zap.alvo.empresa} whatsapp={zap.alvo.whatsapp} onClose={zap.fechar} />
+      )}
     </div>
   )
 }
