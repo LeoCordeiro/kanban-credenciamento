@@ -8,7 +8,7 @@ import { Empresa, Anexo, Comentario, Credencial, COLUNAS } from '@/types/kanban'
 import { Checklist } from '@/components/Checklist'
 import { ZapPanel, useZapPanel, temWhatsapp } from '@/components/ZapPanel'
 import { useAuth } from '@/lib/auth'
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle, Instagram, Megaphone } from 'lucide-react'
 import { ArrowLeft, Upload, FileText, Trash2, Send, ImageIcon, Paperclip, Globe, Mail, Phone, KeyRound, Plus, Eye, EyeOff, Copy, ExternalLink, Pencil, Flag, Check, Building2, User, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 
 function formatCNPJ(cnpj: string) {
@@ -41,6 +41,26 @@ function formatarDataBR(iso: string) {
   const [ano, mes, dia] = iso.slice(0, 10).split('-')
   if (!ano || !mes || !dia) return iso
   return `${dia}/${mes}/${ano}`
+}
+
+/** Aceita "@empresa", "empresa" ou a URL inteira e devolve sempre um link válido. */
+function urlInstagram(v: string) {
+  const t = v.trim()
+  if (/^https?:\/\//i.test(t)) return t
+  if (/^(www\.)?instagram\.com/i.test(t)) return `https://${t.replace(/^www\./i, '')}`
+  return `https://instagram.com/${t.replace(/^@/, '')}`
+}
+
+/** Rótulo curto: o que interessa é o @, não o domínio inteiro. */
+function handleInstagram(v: string) {
+  const t = v.trim().replace(/\/+$/, '')
+  const m = t.match(/instagram\.com\/([^/?#]+)/i)
+  return '@' + (m ? m[1] : t.replace(/^@/, ''))
+}
+
+function comProtocolo(v: string) {
+  const t = v.trim()
+  return /^https?:\/\//i.test(t) ? t : `https://${t}`
 }
 
 function formatBytes(bytes: number) {
@@ -184,7 +204,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   const fileRef = useRef<HTMLInputElement>(null)
   const logoRef = useRef<HTMLInputElement>(null)
   const [isEditingContato, setIsEditingContato] = useState(false)
-  const [contatoForm, setContatoForm] = useState({ emails: '', whatsapp: '', site: '' })
+  const [contatoForm, setContatoForm] = useState({ emails: '', whatsapp: '', site: '', instagram: '', reclame_aqui: '' })
   const [isEditingDados, setIsEditingDados] = useState(false)
   const [dadosForm, setDadosForm] = useState({
     razao_social: '',
@@ -360,6 +380,8 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
       emails: empresa.emails || '',
       whatsapp: empresa.whatsapp || '',
       site: empresa.site || '',
+      instagram: empresa.instagram || '',
+      reclame_aqui: empresa.reclame_aqui || '',
     })
     setIsEditingContato(true)
   }
@@ -370,6 +392,8 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
       emails: contatoForm.emails.trim() || null,
       whatsapp: contatoForm.whatsapp.trim() || null,
       site: contatoForm.site.trim() || null,
+      instagram: contatoForm.instagram.trim() || null,
+      reclame_aqui: contatoForm.reclame_aqui.trim() || null,
     }
     const { error } = await supabase.from('empresas').update(payload).eq('id', id)
     if (error) {
@@ -671,6 +695,14 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                 <label className={CAMPO_LABEL}>Site</label>
                 <input value={contatoForm.site} onChange={e => setContatoForm(p => ({ ...p, site: e.target.value }))} placeholder="https://empresa.com" className={INPUT} />
               </div>
+              <div>
+                <label className={CAMPO_LABEL}>Instagram</label>
+                <input value={contatoForm.instagram} onChange={e => setContatoForm(p => ({ ...p, instagram: e.target.value }))} placeholder="@empresa" className={INPUT} />
+              </div>
+              <div className="col-span-2">
+                <label className={CAMPO_LABEL}>Reclame Aqui</label>
+                <input value={contatoForm.reclame_aqui} onChange={e => setContatoForm(p => ({ ...p, reclame_aqui: e.target.value }))} placeholder="https://reclameaqui.com.br/empresa/..." className={INPUT} />
+              </div>
             </div>
           ) : (
             <dl className="grid grid-cols-3 gap-x-4 gap-y-2 p-3">
@@ -723,6 +755,35 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                     ) : <span className="text-text-muted">—</span>}
                   </div>
                   {empresa.site && <CopyBtn value={empresa.site} />}
+                </dd>
+              </div>
+
+              <div data-campo>
+                <dt className={CAMPO_LABEL}>Instagram</dt>
+                <dd className="flex items-start gap-1">
+                  <div className="flex-1 min-w-0 text-sm leading-[1.35]">
+                    {empresa.instagram ? (
+                      <a href={urlInstagram(empresa.instagram)} target="_blank" rel="noopener noreferrer" className="text-btn-primary hover:underline inline-flex items-center gap-1.5 min-w-0 max-w-full">
+                        <Instagram className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{handleInstagram(empresa.instagram)}</span>
+                      </a>
+                    ) : <span className="text-text-muted">—</span>}
+                  </div>
+                  {empresa.instagram && <CopyBtn value={empresa.instagram} />}
+                </dd>
+              </div>
+
+              <div data-campo className="col-span-2">
+                <dt className={CAMPO_LABEL}>Reclame Aqui</dt>
+                <dd className="flex items-start gap-1">
+                  <div className="flex-1 min-w-0 text-sm leading-[1.35]">
+                    {empresa.reclame_aqui ? (
+                      <a href={comProtocolo(empresa.reclame_aqui)} target="_blank" rel="noopener noreferrer" className="text-btn-primary hover:underline inline-flex items-center gap-1.5 min-w-0 max-w-full">
+                        <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{empresa.reclame_aqui.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                      </a>
+                    ) : <span className="text-text-muted">—</span>}
+                  </div>
+                  {empresa.reclame_aqui && <CopyBtn value={empresa.reclame_aqui} />}
                 </dd>
               </div>
             </dl>

@@ -19,6 +19,8 @@ export interface Empresa {
   emails: string | null
   whatsapp: string | null
   site: string | null
+  instagram: string | null
+  reclame_aqui: string | null
   logo_url: string | null
   created_at: string
   updated_at: string
