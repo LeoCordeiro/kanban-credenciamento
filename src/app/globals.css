@@ -15,23 +15,13 @@
   --color-btn-primary: #0079bf;
   --color-btn-primary-hover: #026aa7;
 
-  /* Ficha densa (tela de detalhe): superfície rebaixada e divisória mais leve
-     que --color-border, para separar seções sem empilhar card dentro de card. */
-  --color-surface-sunken: #f1f2f4;
-  --color-hairline: #e8eaee;
-
-  /* IBM Plex: sans para a interface, mono para dado que se copia
-     (CNPJ, CPF, CEP, conta, senha, data). As vars vêm do next/font no layout. */
-  --font-sans: var(--font-plex-sans), ui-sans-serif, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  /* Superfície rebaixada: mesma do hover de card do board, usada nos campos
+     de formulário e nas faixas de cabeçalho da ficha. */
+  --color-surface-sunken: #f4f5f7;
 }
 
-body {
-  font-family: var(--font-sans);
-}
-
-/* Ferramenta de trabalho: barra de rolagem fina nas listas com scroll próprio,
-   para não comer largura útil da coluna. */
+/* Barra de rolagem fina nas listas que rolam em si mesmas (comentários,
+   credenciais, anexos), para não comer largura útil da coluna. */
 .scroll-fino {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;

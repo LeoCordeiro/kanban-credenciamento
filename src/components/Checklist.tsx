@@ -67,20 +67,20 @@ export function Checklist({ empresaId }: { empresaId: string }) {
   const completo = feitos === total && total > 0
 
   return (
-    <section className="bg-white border border-border rounded overflow-hidden shrink-0">
-      <div className="flex items-center gap-2 h-8 px-3 border-b border-hairline bg-surface-sunken/50">
+    <section className="bg-white border border-border rounded-xl shadow-sm overflow-hidden shrink-0">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-transparent">
         <ListChecks className="w-3.5 h-3.5 text-text-muted" />
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-secondary">Checklist</h2>
+        <h2 className="text-base font-semibold text-text-primary">Checklist</h2>
         <div className="ml-auto flex items-center gap-2">
           {/* Barra de progresso na própria linha do título: informa o mesmo
               sem gastar uma faixa de altura só para ela. */}
-          <div className="w-24 h-1 bg-surface-sunken rounded-full overflow-hidden">
+          <div className="w-24 h-1 bg-[#f4f5f7] rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-[width] duration-200 ${completo ? 'bg-green-500' : 'bg-btn-primary'}`}
               style={{ width: `${pct}%` }}
             />
           </div>
-          <span className={`text-[11px] font-mono font-semibold ${completo ? 'text-green-600' : 'text-text-secondary'}`}>
+          <span className={`text-sm font-mono font-semibold ${completo ? 'text-green-600' : 'text-text-secondary'}`}>
             {feitos}/{total}
           </span>
         </div>
@@ -88,13 +88,13 @@ export function Checklist({ empresaId }: { empresaId: string }) {
 
       {/* Teto para o checklist não empurrar a coluna inteira quando a empresa
           acumula muitos itens — a lista rola em si mesma. */}
-      <div className="scroll-fino max-h-[40vh] overflow-y-auto divide-y divide-hairline">
+      <div className="scroll-fino max-h-[40vh] overflow-y-auto divide-y divide-border">
         {itens.map(item => (
-          <div key={item.id} className="group flex items-center gap-2 px-3 py-1 hover:bg-surface-sunken/60 transition-colors">
+          <div key={item.id} className="group flex items-center gap-2 px-4 py-2 hover:bg-card-hover transition-colors">
             <button
               onClick={() => alternar(item)}
               title={item.concluido ? 'Desmarcar' : 'Marcar como feito'}
-              className={`w-4 h-4 rounded-[3px] border flex items-center justify-center shrink-0 transition-colors ${
+              className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
                 item.concluido
                   ? 'bg-green-500 border-green-500 text-white'
                   : 'border-text-muted/50 hover:border-btn-primary hover:bg-btn-primary/5'
@@ -103,12 +103,12 @@ export function Checklist({ empresaId }: { empresaId: string }) {
               {item.concluido && <Check className="w-3 h-3" strokeWidth={3} />}
             </button>
 
-            <span className={`flex-1 min-w-0 truncate text-[12px] ${item.concluido ? 'text-text-muted line-through' : 'text-text-primary'}`}>
+            <span className={`flex-1 min-w-0 truncate text-sm ${item.concluido ? 'text-text-muted line-through' : 'text-text-primary'}`}>
               {item.titulo}
             </span>
 
             {item.concluido && item.concluido_por && (
-              <span className="text-[10px] text-text-secondary capitalize shrink-0">{item.concluido_por}</span>
+              <span className="text-xs text-text-secondary capitalize shrink-0">{item.concluido_por}</span>
             )}
 
             <button
@@ -120,15 +120,15 @@ export function Checklist({ empresaId }: { empresaId: string }) {
             </button>
           </div>
         ))}
-        {total === 0 && <p className="text-[12px] text-text-secondary px-3 py-2.5">Nenhum item no checklist.</p>}
+        {total === 0 && <p className="text-sm text-text-secondary px-4 py-3">Nenhum item no checklist.</p>}
       </div>
 
-      <form onSubmit={adicionar} className="flex gap-2 border-t border-hairline p-2">
+      <form onSubmit={adicionar} className="flex gap-2 border-t border-border p-3">
         <input
           value={novo}
           onChange={e => setNovo(e.target.value)}
           placeholder="Adicionar item..."
-          className="flex-1 min-w-0 px-2 py-1 bg-surface-sunken border border-border rounded text-[13px] leading-5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary focus:ring-2 focus:ring-btn-primary/20 transition-colors"
+          className="flex-1 min-w-0 px-2 py-1 bg-[#f4f5f7] border border-border rounded text-sm leading-5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary focus:ring-2 focus:ring-btn-primary/20 transition-colors"
         />
         <button
           type="submit"

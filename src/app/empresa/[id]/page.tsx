@@ -58,23 +58,22 @@ function getLuminance(hex: string) {
 }
 
 /* ── Vocabulário visual da ficha ────────────────────────────────────────────
-   Ferramenta de operação, não página de marketing: superfície branca única,
-   seções separadas por fio de 1px, zero card dentro de card.                */
+   Mesma linguagem do board: card branco arredondado com sombra suave, fonte
+   do sistema, escala de texto padrão do Tailwind, rótulos em caixa normal.
+   Mono só no dado que se copia — o card do board já usa mono no CNPJ.       */
 
-const INPUT = 'w-full px-2 py-1 bg-surface-sunken border border-border rounded text-[13px] leading-5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary focus:ring-2 focus:ring-btn-primary/20 transition-colors'
-// --color-text-muted (#97a0af) dá 2.64:1 sobre branco e reprova no AA; em texto
-// pequeno de dado real usar --color-text-secondary (#5e6c84), que mede 5.31:1.
-const CAMPO_LABEL = 'block text-[10px] font-semibold uppercase tracking-[0.07em] text-text-secondary mb-0.5'
-const TITULO_SECAO = 'text-[11px] font-semibold uppercase tracking-[0.09em] text-text-secondary'
-const BOTAO_DISCRETO = 'inline-flex items-center gap-1 text-[11px] font-medium text-text-secondary hover:text-text-primary transition-colors'
+const INPUT = 'w-full px-3 py-2 bg-[#f4f5f7] border border-border rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary transition-colors'
+const CAMPO_LABEL = 'block text-xs text-text-secondary mb-1'
+const TITULO_SECAO = 'text-base font-semibold text-text-primary'
+const BOTAO_DISCRETO = 'inline-flex items-center gap-1 text-sm text-text-muted hover:text-text-secondary transition-colors'
 
 function Painel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <section className={`bg-white border border-border rounded overflow-hidden ${className}`}>{children}</section>
+  return <section className={`bg-card-bg border border-border rounded-xl shadow-sm overflow-hidden ${className}`}>{children}</section>
 }
 
 function CabecalhoSecao({ icone, titulo, contagem, children }: { icone?: React.ReactNode; titulo: string; contagem?: React.ReactNode; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 h-8 px-3 border-b border-hairline bg-surface-sunken/50">
+    <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
       {icone}
       <h2 className={TITULO_SECAO}>{titulo}</h2>
       {contagem}
@@ -88,11 +87,11 @@ function CopyBtn({ value, titulo = 'Copiar' }: { value: string; titulo?: string 
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1200) }}
-      className={`shrink-0 p-0.5 rounded transition-colors ${ok ? 'text-green-600' : 'text-text-secondary hover:text-btn-primary'}`}
+      className={`shrink-0 p-1 rounded-lg transition-colors ${ok ? 'text-green-600' : 'text-text-muted hover:text-accent hover:bg-black/5'}`}
       title={titulo}
       aria-label={titulo}
     >
-      {ok ? <Check className="w-3.5 h-3.5" strokeWidth={2.5} /> : <Copy className="w-3.5 h-3.5" />}
+      {ok ? <Check className="w-4 h-4" strokeWidth={2.5} /> : <Copy className="w-4 h-4" />}
     </button>
   )
 }
@@ -102,7 +101,7 @@ function Field({ label, children, copyValue, mono, span }: { label: string; chil
     <div data-campo className={span ? 'col-span-2' : ''}>
       <dt className={CAMPO_LABEL}>{label}</dt>
       <dd className="flex items-start gap-1">
-        <div className={`flex-1 min-w-0 text-[13px] leading-[1.35] text-text-primary ${mono ? 'font-mono tracking-tight' : ''}`}>
+        <div className={`flex-1 min-w-0 text-sm leading-snug text-text-primary ${mono ? 'font-mono' : ''}`}>
           {children || <span className="text-text-muted">—</span>}
         </div>
         {copyValue && <CopyBtn value={copyValue} />}
@@ -128,21 +127,21 @@ function CnaesSecundarios({ texto }: { texto: string | null }) {
 
   return (
     <div>
-      <button onClick={() => setAberto(v => !v)} className="flex items-center gap-1 text-[11px] font-medium text-btn-primary hover:underline">
+      <button onClick={() => setAberto(v => !v)} className="flex items-center gap-1 text-xs font-medium text-btn-primary hover:underline">
         {itens.length} atividades
         {aberto ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
       {aberto ? (
-        <ul className="scroll-fino mt-1 max-h-[132px] overflow-y-auto divide-y divide-hairline border-y border-hairline">
+        <ul className="scroll-fino mt-1 max-h-[132px] overflow-y-auto divide-y divide-border border-y border-border">
           {partes.map((p, i) => (
-            <li key={i} className="flex gap-2 py-1 text-[12px] leading-tight">
+            <li key={i} className="flex gap-2 py-1 text-xs leading-tight">
               {p.codigo && <span className="font-mono text-text-secondary shrink-0">{p.codigo}</span>}
               <span className="text-text-primary min-w-0">{p.desc}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mt-0.5 font-mono text-[12px] text-text-secondary truncate" title={partes.map(p => p.codigo || p.desc).join(' · ')}>
+        <p className="mt-0.5 font-mono text-xs text-text-secondary truncate" title={partes.map(p => p.codigo || p.desc).join(' · ')}>
           {partes.map(p => p.codigo || p.desc).join(' · ')}
         </p>
       )}
@@ -460,12 +459,12 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
       {/* Barra única: voltar, identidade e situação da empresa numa linha só.
           O bloco antigo de cabeçalho gastava ~180px de altura só com chrome. */}
       <header
-        className="sticky top-0 z-30 flex items-center gap-3 h-13 px-4 py-2 backdrop-blur-sm"
+        className="sticky top-0 z-30 flex items-center gap-3 h-13 px-6 py-2 backdrop-blur-sm"
         style={{ backgroundColor: darken(bgColor) + 'dd' }}
       >
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium shrink-0 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm font-medium shrink-0 transition-colors"
           style={{ color: headerSub }}
           onMouseEnter={e => e.currentTarget.style.color = headerText}
           onMouseLeave={e => e.currentTarget.style.color = headerSub}
@@ -477,21 +476,21 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
         <button onClick={() => logoRef.current?.click()} className="relative group/logo shrink-0" title="Clique para alterar a logo">
           {empresa.logo_url ? (
-            <img src={empresa.logo_url} alt="" className="w-9 h-9 rounded object-cover border border-white/20" />
+            <img src={empresa.logo_url} alt="" className="w-9 h-9 rounded-lg object-cover border border-white/20" />
           ) : (
-            <div className="w-9 h-9 rounded bg-black/20 border border-white/15 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-lg bg-black/20 border border-white/15 flex items-center justify-center">
               <ImageIcon className="w-4 h-4" style={{ color: headerSub }} />
             </div>
           )}
-          <div className="absolute inset-0 rounded bg-black/50 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
+          <div className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
             <Upload className="w-4 h-4 text-white" />
           </div>
           <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
         </button>
 
         <div className="min-w-0 flex-1 flex items-baseline gap-2">
-          <h1 className="text-[15px] font-semibold leading-tight truncate" style={{ color: headerText }}>{empresa.razao_social}</h1>
-          {empresa.nome_fantasia && <span className="hidden lg:inline text-[12px] truncate" style={{ color: headerSub }}>{empresa.nome_fantasia}</span>}
+          <h1 className="text-base font-semibold leading-tight truncate" style={{ color: headerText }}>{empresa.razao_social}</h1>
+          {empresa.nome_fantasia && <span className="hidden lg:inline text-xs truncate" style={{ color: headerSub }}>{empresa.nome_fantasia}</span>}
         </div>
 
         {/* Em tela estreita some o que já está repetido na ficha logo abaixo
@@ -499,19 +498,19 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => navigator.clipboard.writeText(empresa.cnpj)}
-            className="hidden sm:block shrink-0 font-mono text-[12px] tracking-tight px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
+            className="hidden sm:block shrink-0 font-mono text-xs tracking-tight px-2 py-0.5 rounded-lg hover:bg-white/10 transition-colors"
             style={{ color: headerSub }}
             title="Copiar CNPJ"
           >
             {formatCNPJ(empresa.cnpj)}
           </button>
           {plataformaNome && (
-            <span className="hidden xl:inline shrink-0 text-[11px] font-medium px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: headerText }}>
+            <span className="hidden xl:inline shrink-0 text-xs font-medium px-2 py-0.5 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: headerText }}>
               {plataformaNome}
             </span>
           )}
           {coluna && (
-            <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: coluna.cor, color: '#fff' }}>
+            <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-lg whitespace-nowrap" style={{ backgroundColor: coluna.cor, color: '#fff' }}>
               {coluna.nome}
             </span>
           )}
@@ -530,8 +529,8 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
           <CabecalhoSecao icone={<Building2 className="w-3.5 h-3.5 text-text-muted" />} titulo="Empresa">
             {isEditingDados ? (
               <>
-                <button onClick={handleSaveDados} className="text-[11px] font-semibold text-btn-primary hover:underline">Salvar</button>
-                <button onClick={() => setIsEditingDados(false)} className="text-[11px] text-text-secondary hover:text-text-primary">Cancelar</button>
+                <button onClick={handleSaveDados} className="text-xs font-semibold text-btn-primary hover:underline">Salvar</button>
+                <button onClick={() => setIsEditingDados(false)} className="text-xs text-text-secondary hover:text-text-primary">Cancelar</button>
               </>
             ) : (
               <button onClick={startEditDados} className={BOTAO_DISCRETO}><Pencil className="w-3 h-3" /> Editar</button>
@@ -587,8 +586,8 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
           <CabecalhoSecao icone={<User className="w-3.5 h-3.5 text-text-muted" />} titulo="Responsável">
             {isEditingResponsavel ? (
               <>
-                <button onClick={handleSaveResponsavel} className="text-[11px] font-semibold text-btn-primary hover:underline">Salvar</button>
-                <button onClick={() => setIsEditingResponsavel(false)} className="text-[11px] text-text-secondary hover:text-text-primary">Cancelar</button>
+                <button onClick={handleSaveResponsavel} className="text-xs font-semibold text-btn-primary hover:underline">Salvar</button>
+                <button onClick={() => setIsEditingResponsavel(false)} className="text-xs text-text-secondary hover:text-text-primary">Cancelar</button>
               </>
             ) : (
               <button onClick={startEditResponsavel} className={BOTAO_DISCRETO}><Pencil className="w-3 h-3" /> Editar</button>
@@ -638,8 +637,8 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
           <CabecalhoSecao icone={<Mail className="w-3.5 h-3.5 text-text-muted" />} titulo="Contato">
             {isEditingContato ? (
               <>
-                <button onClick={handleSaveContato} className="text-[11px] font-semibold text-btn-primary hover:underline">Salvar</button>
-                <button onClick={() => setIsEditingContato(false)} className="text-[11px] text-text-secondary hover:text-text-primary">Cancelar</button>
+                <button onClick={handleSaveContato} className="text-xs font-semibold text-btn-primary hover:underline">Salvar</button>
+                <button onClick={() => setIsEditingContato(false)} className="text-xs text-text-secondary hover:text-text-primary">Cancelar</button>
               </>
             ) : (
               <button onClick={startEditContato} className={BOTAO_DISCRETO}><Pencil className="w-3 h-3" /> Editar</button>
@@ -666,7 +665,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               <div data-campo>
                 <dt className={CAMPO_LABEL}>E-mails</dt>
                 <dd className="flex items-start gap-1">
-                  <div className="flex-1 min-w-0 text-[13px] leading-[1.35]">
+                  <div className="flex-1 min-w-0 text-sm leading-[1.35]">
                     {empresa.emails ? (
                       <a href={`mailto:${empresa.emails}`} className="text-btn-primary hover:underline inline-flex items-center gap-1.5 min-w-0 max-w-full">
                         <Mail className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{empresa.emails}</span>
@@ -680,7 +679,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               <div data-campo>
                 <dt className={CAMPO_LABEL}>WhatsApp / Telefone</dt>
                 <dd className="flex items-start gap-1">
-                  <div className="flex-1 min-w-0 text-[13px] leading-[1.35]">
+                  <div className="flex-1 min-w-0 text-sm leading-[1.35]">
                     {empresa.whatsapp ? (
                       <span className="inline-flex items-center gap-2 flex-wrap max-w-full">
                         <a href={`tel:${empresa.whatsapp.replace(/\D/g, '')}`} className="text-btn-primary hover:underline inline-flex items-center gap-1.5 font-mono max-w-full">
@@ -689,7 +688,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                         {temWhatsapp(empresa.whatsapp) && (
                           <button
                             onClick={() => zap.abrir(empresa.razao_social, empresa.whatsapp!)}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-medium text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors"
                           >
                             <MessageCircle className="w-3 h-3" /> Abrir conversa
                           </button>
@@ -704,7 +703,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               <div data-campo>
                 <dt className={CAMPO_LABEL}>Site</dt>
                 <dd className="flex items-start gap-1">
-                  <div className="flex-1 min-w-0 text-[13px] leading-[1.35]">
+                  <div className="flex-1 min-w-0 text-sm leading-[1.35]">
                     {empresa.site ? (
                       <a href={empresa.site.startsWith('http') ? empresa.site : `https://${empresa.site}`} target="_blank" rel="noopener noreferrer" className="text-btn-primary hover:underline inline-flex items-center gap-1.5 min-w-0 max-w-full">
                         <Globe className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{empresa.site}</span>
@@ -726,19 +725,19 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
             <CabecalhoSecao
               icone={<KeyRound className="w-3.5 h-3.5 text-text-muted" />}
               titulo="Credenciais"
-              contagem={credenciais.length > 0 ? <span className="text-[11px] font-mono text-text-secondary">{credenciais.length}</span> : undefined}
+              contagem={credenciais.length > 0 ? <span className="text-xs font-mono text-text-secondary">{credenciais.length}</span> : undefined}
             >
               <button onClick={() => openCredForm()} className={BOTAO_DISCRETO}><Plus className="w-3 h-3" /> Adicionar</button>
             </CabecalhoSecao>
 
-            {credenciais.length === 0 && !showCredForm && <p className="text-[12px] text-text-secondary px-3 py-2.5">Nenhuma credencial salva.</p>}
+            {credenciais.length === 0 && !showCredForm && <p className="text-xs text-text-secondary px-3 py-2.5">Nenhuma credencial salva.</p>}
 
             {credenciais.length > 0 && (
-              <div className="scroll-fino max-h-[46vh] xl:max-h-none xl:flex-1 xl:min-h-0 overflow-y-auto divide-y divide-hairline">
+              <div className="scroll-fino max-h-[46vh] xl:max-h-none xl:flex-1 xl:min-h-0 overflow-y-auto divide-y divide-border">
                 {credenciais.map(c => (
-                  <div key={c.id} className="group px-3 py-2 hover:bg-surface-sunken/60 transition-colors">
+                  <div key={c.id} className="group px-3 py-2 hover:bg-card-hover transition-colors">
                     <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-semibold text-text-primary truncate">{c.titulo}</span>
+                      <span className="text-xs font-semibold text-text-primary truncate">{c.titulo}</span>
                       {c.url && (
                         <a
                           href={c.url.startsWith('http') ? c.url : `https://${c.url}`}
@@ -760,15 +759,15 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                       </div>
                     </div>
 
-                    <div className="mt-0.5 flex items-center gap-x-4 gap-y-0.5 flex-wrap text-[12px]">
+                    <div className="mt-0.5 flex items-center gap-x-4 gap-y-0.5 flex-wrap text-xs">
                       <span className="inline-flex items-center gap-1 min-w-0">
-                        <span className="text-[10px] uppercase tracking-[0.07em] text-text-secondary">usuário</span>
+                        <span className="text-xs text-text-secondary">usuário</span>
                         <span className="font-mono text-text-primary truncate min-w-0">{c.usuario}</span>
                         <CopyBtn value={c.usuario} titulo="Copiar usuário" />
                       </span>
                       {c.senha && (
                         <span className="inline-flex items-center gap-1">
-                          <span className="text-[10px] uppercase tracking-[0.07em] text-text-secondary">senha</span>
+                          <span className="text-xs text-text-secondary">senha</span>
                           <span className="font-mono text-text-primary">{senhasVisiveis.has(c.id) ? c.senha : '••••••••'}</span>
                           <button onClick={() => toggleSenha(c.id)} className="p-0.5 text-text-secondary hover:text-btn-primary transition-colors" title={senhasVisiveis.has(c.id) ? 'Ocultar' : 'Mostrar'}>
                             {senhasVisiveis.has(c.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -778,14 +777,14 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                       )}
                     </div>
 
-                    {c.notas && <p className="mt-0.5 text-[11px] text-text-secondary leading-tight">{c.notas}</p>}
+                    {c.notas && <p className="mt-0.5 text-xs text-text-secondary leading-tight">{c.notas}</p>}
                   </div>
                 ))}
               </div>
             )}
 
             {showCredForm && (
-              <form onSubmit={handleSaveCred} className="border-t border-hairline bg-surface-sunken/60 p-3 space-y-2">
+              <form onSubmit={handleSaveCred} className="border-t border-border bg-card-hover p-3 space-y-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                   <div>
                     <label className={CAMPO_LABEL}>Título *</label>
@@ -809,8 +808,8 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                   </div>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => { setShowCredForm(false); setEditingCred(null) }} className="px-2.5 py-1 text-[12px] text-text-secondary hover:text-text-primary">Cancelar</button>
-                  <button type="submit" className="px-3 py-1 bg-btn-primary text-white rounded text-[12px] font-semibold hover:bg-btn-primary-hover transition-colors">{editingCred ? 'Salvar' : 'Adicionar'}</button>
+                  <button type="button" onClick={() => { setShowCredForm(false); setEditingCred(null) }} className="px-2.5 py-1 text-xs text-text-secondary hover:text-text-primary">Cancelar</button>
+                  <button type="submit" className="px-3 py-1 bg-btn-primary text-white rounded-lg text-xs font-semibold hover:bg-btn-primary-hover transition-colors">{editingCred ? 'Salvar' : 'Adicionar'}</button>
                 </div>
               </form>
             )}
@@ -823,23 +822,23 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
             <CabecalhoSecao
               icone={<MessageSquare className="w-3.5 h-3.5 text-text-muted" />}
               titulo="Comentários"
-              contagem={plataformaNome ? <span className="text-[11px] text-text-secondary truncate">— {plataformaNome}</span> : undefined}
+              contagem={plataformaNome ? <span className="text-xs text-text-secondary truncate">— {plataformaNome}</span> : undefined}
             />
             {!plataformaId ? (
-              <p className="text-[12px] text-text-secondary px-3 py-2.5">Acesse a empresa pelo board de uma plataforma para ver e adicionar comentários.</p>
+              <p className="text-xs text-text-secondary px-3 py-2.5">Acesse a empresa pelo board de uma plataforma para ver e adicionar comentários.</p>
             ) : (
               <>
-                <div className="scroll-fino max-h-[46vh] xl:max-h-none xl:flex-1 xl:min-h-0 overflow-y-auto divide-y divide-hairline">
-                  {comentarios.length === 0 && <p className="text-[12px] text-text-secondary px-3 py-2.5">Nenhum comentário ainda.</p>}
+                <div className="scroll-fino max-h-[46vh] xl:max-h-none xl:flex-1 xl:min-h-0 overflow-y-auto divide-y divide-border">
+                  {comentarios.length === 0 && <p className="text-xs text-text-secondary px-3 py-2.5">Nenhum comentário ainda.</p>}
                   {comentarios.map(c => (
-                    <div key={c.id} className={`group flex gap-2 px-3 py-1.5 transition-colors ${c.red_flag ? 'bg-red-50' : 'hover:bg-surface-sunken/60'}`}>
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5 ${c.red_flag ? 'bg-red-100 text-red-600' : 'bg-surface-sunken text-text-secondary'}`}>
+                    <div key={c.id} className={`group flex gap-2 px-4 py-2.5 transition-colors ${c.red_flag ? 'bg-red-50' : 'hover:bg-card-hover'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${c.red_flag ? 'bg-red-100 text-red-600' : 'bg-[#f4f5f7] text-text-secondary'}`}>
                         {c.autor[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-semibold text-text-secondary capitalize">{c.autor}</span>
-                          <span className="text-[11px] text-text-secondary">{timeAgo(c.created_at)}</span>
+                          <span className="text-xs font-semibold text-text-secondary capitalize">{c.autor}</span>
+                          <span className="text-xs text-text-secondary">{timeAgo(c.created_at)}</span>
                           {c.red_flag && (
                             <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-600 uppercase tracking-wide">
                               <Flag className="w-2.5 h-2.5 fill-red-500" /> Red flag
@@ -849,7 +848,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                             <button
                               onClick={() => handleToggleRedFlag(c)}
                               title={c.red_flag ? 'Remover red flag' : 'Marcar como red flag'}
-                              className={`p-0.5 rounded transition-all ${c.red_flag ? 'text-red-500 hover:text-red-700 opacity-100' : 'opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-500'}`}
+                              className={`p-0.5 rounded-lg transition-all ${c.red_flag ? 'text-red-500 hover:text-red-700 opacity-100' : 'opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-500'}`}
                             >
                               <Flag className={`w-3.5 h-3.5 ${c.red_flag ? 'fill-red-500' : ''}`} />
                             </button>
@@ -858,19 +857,19 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
                             </button>
                           </div>
                         </div>
-                        <p className="text-[12px] leading-[1.4] text-text-primary whitespace-pre-wrap break-words">{c.texto}</p>
+                        <p className="text-xs leading-[1.4] text-text-primary whitespace-pre-wrap break-words">{c.texto}</p>
                       </div>
                     </div>
                   ))}
                 </div>
-                <form onSubmit={handleEnviarComentario} className="flex gap-2 border-t border-hairline p-2">
+                <form onSubmit={handleEnviarComentario} className="flex gap-2 border-t border-border p-3">
                   <input
                     value={novoComentario}
                     onChange={e => setNovoComentario(e.target.value)}
                     placeholder="Escrever comentário..."
                     className={INPUT}
                   />
-                  <button type="submit" disabled={!novoComentario.trim()} className="shrink-0 px-2 bg-btn-primary text-white rounded hover:bg-btn-primary-hover transition-colors disabled:opacity-30">
+                  <button type="submit" disabled={!novoComentario.trim()} className="shrink-0 px-2 bg-btn-primary text-white rounded-lg hover:bg-btn-primary-hover transition-colors disabled:opacity-30">
                     <Send className="w-4 h-4" />
                   </button>
                 </form>
@@ -882,7 +881,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
             <CabecalhoSecao
               icone={<Paperclip className="w-3.5 h-3.5 text-text-muted" />}
               titulo="Anexos"
-              contagem={anexos.length > 0 ? <span className="text-[11px] font-mono text-text-secondary">{anexos.length}</span> : undefined}
+              contagem={anexos.length > 0 ? <span className="text-xs font-mono text-text-secondary">{anexos.length}</span> : undefined}
             >
               <button onClick={() => fileRef.current?.click()} disabled={uploading} className={BOTAO_DISCRETO}>
                 <Upload className="w-3 h-3" /> {uploading ? 'Enviando...' : 'Enviar'}
@@ -893,19 +892,19 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
             {anexos.length === 0 ? (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full m-0 py-3 flex items-center justify-center gap-2 text-[12px] text-text-secondary hover:text-btn-primary hover:bg-surface-sunken/60 transition-colors"
+                className="w-full m-0 py-3 flex items-center justify-center gap-2 text-xs text-text-secondary hover:text-btn-primary hover:bg-card-hover transition-colors"
               >
                 <Paperclip className="w-3.5 h-3.5" /> Anexar arquivo
               </button>
             ) : (
-              <div className="scroll-fino max-h-[26vh] overflow-y-auto divide-y divide-hairline">
+              <div className="scroll-fino max-h-[26vh] overflow-y-auto divide-y divide-border">
                 {anexos.map(a => (
-                  <div key={a.id} className="group flex items-center gap-2 px-3 py-1.5 hover:bg-surface-sunken/60 transition-colors">
+                  <div key={a.id} className="group flex items-center gap-2 px-4 py-2.5 hover:bg-card-hover transition-colors">
                     {a.tipo?.startsWith('image/')
                       ? <ImageIcon className="w-3.5 h-3.5 text-text-muted shrink-0" />
                       : <FileText className="w-3.5 h-3.5 text-text-muted shrink-0" />}
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 text-[12px] text-text-primary hover:text-btn-primary truncate">{a.nome}</a>
-                    {a.tamanho && <span className="text-[11px] font-mono text-text-secondary shrink-0">{formatBytes(a.tamanho)}</span>}
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 text-xs text-text-primary hover:text-btn-primary truncate">{a.nome}</a>
+                    {a.tamanho && <span className="text-xs font-mono text-text-secondary shrink-0">{formatBytes(a.tamanho)}</span>}
                     <button onClick={() => handleDeleteAnexo(a)} title="Excluir" className="opacity-0 group-hover:opacity-100 p-0.5 text-text-secondary hover:text-red-500 transition-all shrink-0">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
