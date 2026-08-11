@@ -31,6 +31,18 @@ function maskCPF(v: string) {
   return v.replace(/\D/g, '').replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1-$2').slice(0, 14)
 }
 
+/**
+ * Data pura (coluna `date`, ex. "2000-09-07") formatada sem passar por Date.
+ * `new Date('2000-09-07')` lê a string como meia-noite UTC; em São Paulo (UTC-3)
+ * isso vira 21h do dia anterior e a tela mostrava sempre um dia a menos que o
+ * que foi digitado. Não usar Date aqui — a data de nascimento não tem fuso.
+ */
+function formatarDataBR(iso: string) {
+  const [ano, mes, dia] = iso.slice(0, 10).split('-')
+  if (!ano || !mes || !dia) return iso
+  return `${dia}/${mes}/${ano}`
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
@@ -624,10 +636,10 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               <Field label="CPF" copyValue={empresa.cpf ?? undefined} mono>{empresa.cpf ? formatCPF(empresa.cpf) : null}</Field>
               <Field
                 label="Data de Nascimento"
-                copyValue={empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : undefined}
+                copyValue={empresa.data_nascimento ? formatarDataBR(empresa.data_nascimento) : undefined}
                 mono
               >
-                {empresa.data_nascimento ? new Date(empresa.data_nascimento).toLocaleDateString('pt-BR') : null}
+                {empresa.data_nascimento ? formatarDataBR(empresa.data_nascimento) : null}
               </Field>
               <Field label="Endereço de Contato" copyValue={empresa.endereco ?? undefined} span>{empresa.endereco}</Field>
             </dl>
