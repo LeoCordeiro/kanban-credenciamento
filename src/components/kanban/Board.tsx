@@ -10,6 +10,7 @@ import { Card } from './Card'
 import { CardForm } from './CardForm'
 import { PlataformaTabs } from './PlataformaTabs'
 import { UserMenu } from '../UserMenu'
+import { buscar } from '@/lib/busca'
 import { ZapPanel, useZapPanel } from '../ZapPanel'
 import { Search, Plus, X, Palette, Link2 } from 'lucide-react'
 
@@ -333,12 +334,14 @@ export function Board() {
 
   const activeItem = items.find(i => i.epId === activeId)
 
+  // Busca em todos os campos da empresa, não só nome/CNPJ. `ondeEscondido`
+  // marca no card quando o resultado casou por um campo que o card não mostra.
   const filtradas = busca
-    ? items.filter(i =>
-        i.empresa.razao_social.toLowerCase().includes(busca.toLowerCase()) ||
-        i.empresa.cnpj.includes(busca.replace(/\D/g, '')) ||
-        (i.empresa.nome_fantasia && i.empresa.nome_fantasia.toLowerCase().includes(busca.toLowerCase()))
-      )
+    ? items.reduce<BoardItem[]>((acc, i) => {
+        const r = buscar(i.empresa, busca)
+        if (r.achou) acc.push({ ...i, buscaEm: r.ondeEscondido })
+        return acc
+      }, [])
     : items
 
   const darken = (hex: string) => {
@@ -399,11 +402,25 @@ export function Board() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
               <input
                 type="text"
-                placeholder="Buscar empresa por nome ou CNPJ..."
+                placeholder="Buscar por nome, CNPJ, e-mail, telefone, CPF, endereço..."
                 value={busca}
                 onChange={e => setBusca(e.target.value)}
-                className="w-full pl-12 pr-4 py-2.5 bg-white/15 rounded-lg text-sm text-white placeholder:text-white/40 focus:outline-none focus:bg-white/25 transition-colors"
+                className="w-full pl-12 pr-24 py-2.5 bg-white/15 rounded-lg text-sm text-white placeholder:text-white/40 focus:outline-none focus:bg-white/25 transition-colors"
               />
+              {busca && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <span className="text-xs text-white/60 whitespace-nowrap">
+                    {filtradas.length === 0 ? 'nada encontrado' : `${filtradas.length} de ${items.length}`}
+                  </span>
+                  <button
+                    onClick={() => setBusca('')}
+                    className="p-1 text-white/50 hover:text-white rounded transition-colors"
+                    title="Limpar busca"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

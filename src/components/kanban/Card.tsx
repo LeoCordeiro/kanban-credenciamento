@@ -14,6 +14,7 @@ interface Props {
   hasRedFlag?: boolean
   redFlagComments?: string[]
   checklist?: ChecklistResumo
+  buscaEm?: string[]
   overlay?: boolean
   onEdit?: () => void
   onRemove?: () => void
@@ -26,7 +27,7 @@ function formatCNPJ(cnpj: string) {
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
 
-export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, overlay, onEdit, onRemove, onAbrirZap }: Props) {
+export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, buscaEm, overlay, onEdit, onRemove, onAbrirZap }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId })
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
@@ -104,6 +105,14 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
         )}
 
         <p className="text-[11px] text-text-muted mt-1 font-mono">{formatCNPJ(empresa.cnpj)}</p>
+
+        {/* A empresa entrou no resultado por um campo que o card não mostra —
+            sem dizer qual, ela parece ter aparecido do nada. */}
+        {buscaEm && buscaEm.length > 0 && (
+          <p className="mt-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 inline-block">
+            achado em {buscaEm.join(', ')}
+          </p>
+        )}
 
         {checklist && checklist.total > 0 && (
           <div className="relative group/check inline-flex items-center gap-1 mt-1.5">

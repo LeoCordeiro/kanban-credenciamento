@@ -114,6 +114,8 @@ export interface BoardItem {
   hasRedFlag?: boolean
   redFlagComments?: string[]
   checklist?: ChecklistResumo
+  /** Campos que casaram com a busca e não aparecem no card (ex.: CPF, Endereço). */
+  buscaEm?: string[]
 }
 
 export const COLUNAS: { id: ColunaId; nome: string; cor: string }[] = [

@@ -45,6 +45,7 @@ export function Column({ coluna, items, plataformaId, onAddCard, onEditCard, onR
               hasRedFlag={item.hasRedFlag}
               redFlagComments={item.redFlagComments}
               checklist={item.checklist}
+              buscaEm={item.buscaEm}
               onEdit={() => onEditCard(item.empresa.id)}
               onRemove={() => onRemoveCard(item.epId)}
               onAbrirZap={() => onAbrirZap(item.empresa.razao_social, item.empresa.whatsapp ?? '')}
