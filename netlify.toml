@@ -1,0 +1,19 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# O plugin oficial cuida do App Router: as rotas com `dynamic = 'force-dynamic'`
+# viram funções, o resto sai estático. Sem ele o Netlify serviria o .next cru
+# e as rotas /empresa/[id] e /checklist dariam 404.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Não há segredo no bundle — a anon key do Supabase é pública por design e o
+# acesso é o mesmo de qualquer origem. Estes cabeçalhos são o mínimo para o
+# painel não ser embutido por terceiros nem vazar a URL em referer.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
