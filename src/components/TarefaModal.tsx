@@ -1,11 +1,45 @@
 'use client'
 
 import { useState } from 'react'
-import { Tarefa, Prioridade, StatusTarefa, PRIORIDADES, STATUS_TAREFA } from '@/types/kanban'
+import { Tarefa, Prioridade, StatusTarefa, PRIORIDADES, STATUS_TAREFA, Documento } from '@/types/kanban'
 import { prazoVencido, formatPrazoCompleto, paraInputDateTime, formatHoras } from '@/lib/tarefas'
 import { Modal } from '@/components/ui/Modal'
 import { CAMPO_LABEL, INPUT } from '@/components/ui/Painel'
-import { CalendarDays, UserRound, Flag, Trash2, CornerDownRight, BookOpen } from 'lucide-react'
+import { CalendarDays, UserRound, Flag, Trash2, CornerDownRight, BookOpen, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+
+/** Documentação vinculada: título sempre visível, conteúdo sob demanda. */
+function DocumentoAcordeao({ doc }: { doc: Documento }) {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="rounded-lg border border-border overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 bg-surface-sunken">
+        {doc.conteudo ? (
+          <button type="button" onClick={() => setAberto(v => !v)} className="flex items-center gap-1.5 min-w-0 flex-1 text-left">
+            {aberto ? <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-text-muted shrink-0" />}
+            <span className="truncate text-sm font-medium text-text-primary">{doc.titulo}</span>
+          </button>
+        ) : (
+          <span className="flex-1 min-w-0 truncate text-sm font-medium text-text-primary pl-5">{doc.titulo}</span>
+        )}
+        {doc.categoria && <span className="shrink-0 px-1.5 py-0.5 rounded bg-white text-[10px] font-medium text-text-secondary border border-border">{doc.categoria}</span>}
+        {doc.url && (
+          <a
+            href={doc.url.startsWith('http') ? doc.url : `https://${doc.url}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={doc.url}
+            className="shrink-0 text-btn-primary hover:text-btn-primary-hover"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
+      </div>
+      {aberto && doc.conteudo && (
+        <p className="px-3 py-2 text-sm text-text-primary leading-relaxed whitespace-pre-wrap border-t border-border">{doc.conteudo}</p>
+      )}
+    </div>
+  )
+}
 
 export interface PatchTarefa {
   titulo?: string
@@ -42,6 +76,7 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
   const prazoISO = form.prazo ? new Date(form.prazo).toISOString() : null
   const vencido = prazoVencido(prazoISO, form.status === 'concluido')
   const instrucoes = tarefa.modelo?.instrucoes
+  const docs = (tarefa.modelo?.docs ?? []).map(d => d.documento).filter(Boolean) as Documento[]
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -91,6 +126,17 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
             <p className="mt-2 text-xs text-text-muted">
               Escritas em <a href="/tarefas" className="text-btn-primary hover:underline">Tarefas</a> e válidas para todas as empresas.
             </p>
+          </div>
+        )}
+
+        {/* Documentação de consulta do tipo — aberta aqui para não obrigar a
+            sair da tarefa para procurar como se faz. */}
+        {docs.length > 0 && (
+          <div className="space-y-2">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+              <BookOpen className="w-3.5 h-3.5" /> Documentação
+            </p>
+            {docs.map(d => <DocumentoAcordeao key={d.id} doc={d} />)}
           </div>
         )}
 

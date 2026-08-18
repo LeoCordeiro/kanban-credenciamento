@@ -101,8 +101,11 @@ export interface ChecklistItem {
   status: StatusTarefa
   sla_horas: number | null
   created_at: string
-  /** Vem do join com checklist_modelo — instruções valem para todas as empresas. */
-  modelo?: { instrucoes: string | null } | null
+  /** Vem do join com checklist_modelo — instruções e documentação são do tipo. */
+  modelo?: {
+    instrucoes: string | null
+    docs?: { documento: Documento | null }[] | null
+  } | null
 }
 
 /** Na UI o conceito virou "tarefa" — mesma tabela checklist_itens. */
@@ -119,6 +122,10 @@ export interface ChecklistModeloItem {
   instrucoes: string | null
   prioridade: Prioridade
   created_at: string
+  /** Documentações de consulta (join). Aparecem dentro da tarefa na ficha. */
+  docs?: { documento: Documento | null }[] | null
+  /** Plataformas às quais a tarefa é restrita (join). Vazio = todas. */
+  plataformas?: { plataforma_id: string }[] | null
 }
 
 export interface Usuario {

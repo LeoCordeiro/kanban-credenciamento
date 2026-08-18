@@ -6,16 +6,18 @@ import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useS
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '@/lib/supabase'
-import { ChecklistModeloItem, PRIORIDADES } from '@/types/kanban'
+import { ChecklistModeloItem, PRIORIDADES, Documento, Plataforma } from '@/types/kanban'
 import { formatHoras } from '@/lib/tarefas'
 import { TipoTarefaModal, PatchTipo } from '@/components/TipoTarefaModal'
-import { ArrowLeft, GripVertical, Plus, ListChecks, Loader2, Check, X, Timer, AlignLeft } from 'lucide-react'
+import { ArrowLeft, GripVertical, Plus, ListChecks, Loader2, Check, X, Timer, AlignLeft, BookOpen, LayoutGrid } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
-function Linha({ item, onAbrir }: { item: ChecklistModeloItem; onAbrir: (t: ChecklistModeloItem) => void }) {
+function Linha({ item, plataformas, onAbrir }: { item: ChecklistModeloItem; plataformas: Plataforma[]; onAbrir: (t: ChecklistModeloItem) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const prio = PRIORIDADES.find(p => p.id === item.prioridade)
+  const nDocs = item.docs?.length ?? 0
+  const restritas = (item.plataformas ?? []).map(p => plataformas.find(x => x.id === p.plataforma_id)).filter(Boolean) as Plataforma[]
 
   return (
     <div
@@ -41,6 +43,24 @@ function Linha({ item, onAbrir }: { item: ChecklistModeloItem; onAbrir: (t: Chec
         )}
       </button>
 
+      {restritas.length > 0 ? (
+        <span className="shrink-0 inline-flex items-center gap-1" title={`Só nas plataformas: ${restritas.map(p => p.nome).join(', ')}`}>
+          <LayoutGrid className="w-3 h-3 text-text-muted" />
+          {restritas.slice(0, 3).map(p => (
+            <span key={p.id} className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-white" style={{ backgroundColor: p.cor }}>
+              {p.nome}
+            </span>
+          ))}
+          {restritas.length > 3 && <span className="text-[10px] text-text-secondary">+{restritas.length - 3}</span>}
+        </span>
+      ) : null}
+
+      {nDocs > 0 && (
+        <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-btn-primary/10 text-[10px] font-semibold text-btn-primary" title={`${nDocs} documentação(ões) vinculada(s)`}>
+          <BookOpen className="w-3 h-3" /> {nDocs}
+        </span>
+      )}
+
       {item.instrucoes
         ? <AlignLeft className="w-3.5 h-3.5 text-btn-primary shrink-0" aria-label="Tem instruções" />
         : <span className="shrink-0 text-xs text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">sem instruções</span>}
@@ -60,6 +80,8 @@ function Linha({ item, onAbrir }: { item: ChecklistModeloItem; onAbrir: (t: Chec
 
 export default function TarefasModeloPage() {
   const [itens, setItens] = useState<ChecklistModeloItem[]>([])
+  const [documentos, setDocumentos] = useState<Documento[]>([])
+  const [plataformas, setPlataformas] = useState<Plataforma[]>([])
   const [carregando, setCarregando] = useState(true)
   const [novo, setNovo] = useState('')
   const [erro, setErro] = useState<string | null>(null)
@@ -76,7 +98,16 @@ export default function TarefasModeloPage() {
   }, [])
 
   const carregar = useCallback(async () => {
-    const { data, error } = await supabase.from('checklist_modelo').select('*').order('ordem')
+    // Traz os vínculos junto: a lista mostra quantas documentações e em quais
+    // quadros cada tarefa vale, sem uma consulta por linha.
+    let { data, error } = await supabase
+      .from('checklist_modelo')
+      .select('*, docs:checklist_modelo_documento(documento:documentos(id, titulo, categoria, url)), plataformas:checklist_modelo_plataforma(plataforma_id)')
+      .order('ordem')
+
+    // Sem a migração 008 o join não existe; cai para a consulta simples.
+    if (error) ({ data, error } = await supabase.from('checklist_modelo').select('*').order('ordem'))
+
     if (error) {
       // Erro cru do PostgREST aqui não ajuda ninguém: o caso real é uma migração
       // que ainda não foi rodada no SQL Editor.
@@ -92,7 +123,11 @@ export default function TarefasModeloPage() {
     setCarregando(false)
   }, [])
 
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => {
+    carregar()
+    supabase.from('documentos').select('*').order('categoria').order('titulo').then(({ data }) => { if (data) setDocumentos(data) })
+    supabase.from('plataformas').select('*').order('ordem').order('created_at').then(({ data }) => { if (data) setPlataformas(data) })
+  }, [carregar])
 
   async function adicionar(e: React.FormEvent) {
     e.preventDefault()
@@ -191,7 +226,7 @@ export default function TarefasModeloPage() {
               <SortableContext items={itens.map(i => i.id)} strategy={verticalListSortingStrategy}>
                 <div className="divide-y divide-border">
                   {itens.map(item => (
-                    <Linha key={item.id} item={item} onAbrir={t => setAbertoId(t.id)} />
+                    <Linha key={item.id} item={item} plataformas={plataformas} onAbrir={t => setAbertoId(t.id)} />
                   ))}
                 </div>
               </SortableContext>
@@ -262,9 +297,11 @@ export default function TarefasModeloPage() {
       {aberto && (
         <TipoTarefaModal
           tipo={aberto}
+          documentos={documentos}
+          plataformas={plataformas}
           onSalvar={patch => atualizar(aberto.id, patch)}
           onRemover={() => remover(aberto.id)}
-          onClose={() => setAbertoId(null)}
+          onClose={() => { setAbertoId(null); carregar() }}
         />
       )}
     </div>

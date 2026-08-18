@@ -51,6 +51,18 @@ já existem" preenche prazo **só onde está vazio** e ignora tarefa concluída 
 SLA é em horas em todo o sistema, inclusive `sla_colunas.max_horas`. `formatHoras()` em
 `src/lib/tarefas.ts` mostra horas até 48h e dias acima disso.
 
+## Documentação e escopo por plataforma (migração 008)
+- `checklist_modelo_documento` (N:N com `documentos`): a documentação de consulta é vinculada
+  ao TIPO e aparece dentro da tarefa na ficha da empresa, em acordeão. Assim ninguém precisa
+  sair da tarefa para achar como se faz.
+- `checklist_modelo_plataforma` (N:N com `plataformas`): **sem linha = tarefa vale para toda
+  empresa** (comportamento de sempre); com linha(s), a tarefa só existe para empresa vinculada
+  àqueles quadros. Por isso a criação virou dois gatilhos: `trg_criar_checklist_padrao`
+  (`after insert on empresas`) cria só as tarefas sem restrição, e `trg_tarefas_da_plataforma`
+  (`after insert on empresa_plataforma`) cria as restritas quando a empresa entra no quadro —
+  é também quando o SLA daquela tarefa começa a contar.
+- Sair da plataforma **não apaga** tarefa: progresso e autoria valem mais que limpeza.
+
 ## SLA
 - **Prazo por tarefa**: vencida = chip vermelho na ficha, badge vermelho no card, linha em `/atrasos`.
 - **Tempo por coluna**: `empresa_plataforma.coluna_desde` (renovado no drag) × `sla_colunas`
@@ -68,9 +80,10 @@ SLA é em horas em todo o sistema, inclusive `sla_colunas.max_horas`. `formatHor
 `supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes. A 005 (tarefas aninhadas,
 SLA de coluna, documentos, acessos) e a 006 (campos da tarefa + SLA por tipo no modelo) foram
 aplicadas em 18/08/2026 — cada uma rodada 2x para provar idempotência.
-⚠️ A **007** (SLA em horas + instruções no tipo) está escrita mas **ainda não foi rodada**:
-rodar `supabase/007_sla_horas_instrucoes_do_tipo.sql` no SQL Editor. Até lá, salvar instruções
-e SLA em `/tarefas` falha (colunas não existem); o resto do sistema segue funcionando.
+⚠️ A **007** (SLA em horas + instruções no tipo) e a **008** (documentação vinculada + escopo
+por plataforma) estão escritas mas **ainda não foram rodadas** — rodar nesta ordem no SQL
+Editor. Até lá, `/tarefas` e a ficha caem em consultas de fallback (a lista aparece, mas sem
+instruções/documentação, e salvar SLA falha). As telas já orientam isso na mensagem de erro.
 Não existe 001 baseline: as tabelas base (empresas, plataformas, empresa_plataforma,
 comentarios, anexos, credenciais) foram criadas à mão e não estão versionadas.
 

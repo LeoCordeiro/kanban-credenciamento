@@ -21,7 +21,7 @@ export function Checklist({ empresaId }: { empresaId: string }) {
     // /tarefas reflete aqui na hora, em todas as empresas.
     const { data, error } = await supabase
       .from('checklist_itens')
-      .select('*, modelo:checklist_modelo(instrucoes)')
+      .select('*, modelo:checklist_modelo(instrucoes, docs:checklist_modelo_documento(documento:documentos(id, titulo, categoria, conteudo, url)))')
       .eq('empresa_id', empresaId)
       .order('ordem')
       .order('created_at')

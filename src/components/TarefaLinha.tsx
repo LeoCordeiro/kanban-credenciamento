@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Tarefa, PRIORIDADES, STATUS_TAREFA } from '@/types/kanban'
 import { folhasDe, estadoEfetivo, statusEfetivo, prazoVencido, formatPrazo, formatPrazoCompleto } from '@/lib/tarefas'
-import { Check, Plus, ChevronRight, ChevronDown, CalendarDays, AlignLeft } from 'lucide-react'
+import { Check, Plus, ChevronRight, ChevronDown, CalendarDays, AlignLeft, BookOpen } from 'lucide-react'
 
 /** Profundidade máxima abaixo da empresa: etapa (0) → subtarefa (1) → sub-subtarefa (2). */
 const NIVEL_MAX = 2
@@ -82,6 +82,10 @@ export function TarefaLinha({ item, nivel, h }: { item: Tarefa; nivel: number; h
             className="w-3 h-3 text-text-muted shrink-0"
             aria-label={item.modelo?.instrucoes ? 'Tem instruções' : 'Tem observação'}
           />
+        )}
+
+        {(item.modelo?.docs?.length ?? 0) > 0 && (
+          <BookOpen className="w-3 h-3 text-btn-primary shrink-0" aria-label="Tem documentação vinculada" />
         )}
 
         {ehPai && (
