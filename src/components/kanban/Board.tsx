@@ -1,18 +1,20 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, CollisionDetection, pointerWithin, rectIntersection, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { supabase } from '@/lib/supabase'
-import { Empresa, Plataforma, BoardItem, ChecklistResumo, COLUNAS, ColunaId } from '@/types/kanban'
+import { Empresa, Plataforma, BoardItem, ChecklistResumo, PendenteResumo, SlaColuna, COLUNAS, ColunaId } from '@/types/kanban'
 import { Column } from './Column'
 import { Card } from './Card'
 import { CardForm } from './CardForm'
 import { PlataformaTabs } from './PlataformaTabs'
-import { UserMenu } from '../UserMenu'
+import { SlaConfigModal } from './SlaConfigModal'
 import { buscar } from '@/lib/busca'
+import { prazoVencido } from '@/lib/tarefas'
+import { useAuth } from '@/lib/auth'
 import { ZapPanel, useZapPanel } from '../ZapPanel'
-import { Search, Plus, X, Palette, Link2 } from 'lucide-react'
+import { Search, Plus, X, Palette, Link2, Timer, CircleUserRound } from 'lucide-react'
 
 const BG_COLORS = [
   { id: 'blue', value: '#0052CC', label: 'Azul' },
@@ -61,7 +63,11 @@ export function Board() {
   const [showAddExisting, setShowAddExisting] = useState(false)
   const [existingEmpresas, setExistingEmpresas] = useState<Empresa[]>([])
   const [existingSearch, setExistingSearch] = useState('')
+  const [slas, setSlas] = useState<SlaColuna[]>([])
+  const [showSlaConfig, setShowSlaConfig] = useState(false)
+  const [soMinhas, setSoMinhas] = useState(false)
 
+  const { usuario } = useAuth()
   const zap = useZapPanel()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -141,18 +147,51 @@ export function Board() {
   }, [])
 
   // O checklist é da empresa, não da plataforma: os pendentes que aparecem no
-  // card são os mesmos em qualquer quadro onde ela esteja.
+  // card são os mesmos em qualquer quadro onde ela esteja. Com as tarefas
+  // aninhadas o resumo conta só as folhas — contar os pais duplicaria.
   const fetchChecklists = useCallback(async () => {
-    const { data } = await supabase.from('checklist_itens').select('empresa_id, titulo, concluido').order('ordem')
+    const { data } = await supabase
+      .from('checklist_itens')
+      .select('id, empresa_id, titulo, concluido, parent_id, prazo, responsavel')
+      .order('ordem')
+    const itens = (data || []) as any[]
+    const porId = new Map(itens.map(i => [i.id, i]))
+    const temFilho = new Set(itens.filter(i => i.parent_id).map(i => i.parent_id))
+
+    const etapaRaiz = (item: any): string => {
+      let t = item
+      while (t.parent_id && porId.has(t.parent_id)) t = porId.get(t.parent_id)
+      return t.titulo
+    }
+
     const map = new Map<string, ChecklistResumo>()
-    ;(data || []).forEach((c: any) => {
-      const atual = map.get(c.empresa_id) || { feitos: 0, total: 0, pendentes: [] }
+    for (const c of itens) {
+      if (temFilho.has(c.id)) continue // pai não conta: seu estado é o das folhas
+      const atual = map.get(c.empresa_id) || { feitos: 0, total: 0, pendentes: [] as PendenteResumo[] }
       atual.total++
       if (c.concluido) atual.feitos++
-      else atual.pendentes.push(c.titulo)
+      else atual.pendentes.push({
+        titulo: c.titulo,
+        etapa: etapaRaiz(c),
+        responsavel: c.responsavel ?? null,
+        prazo: c.prazo ?? null,
+        atrasada: prazoVencido(c.prazo, c.concluido),
+      })
       map.set(c.empresa_id, atual)
-    })
+    }
     return map
+  }, [])
+
+  // SLA por coluna: tabela minúscula, carrega inteira e assina sem filtro.
+  useEffect(() => {
+    supabase.from('sla_colunas').select('*').then(({ data }) => { if (data) setSlas(data) })
+    const ch = supabase.channel('sla-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sla_colunas' }, async () => {
+        const { data } = await supabase.from('sla_colunas').select('*')
+        if (data) setSlas(data)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
   }, [])
 
   useEffect(() => {
@@ -161,16 +200,21 @@ export function Board() {
     Promise.all([
       supabase
         .from('empresa_plataforma')
-        .select('id, coluna, posicao, has_red_flag, empresa_id, empresas(*)')
+        .select('id, coluna, posicao, has_red_flag, coluna_desde, empresa_id, empresas(*)')
         .eq('plataforma_id', selectedId)
         .order('posicao'),
       fetchRedFlagComments(selectedId),
       fetchChecklists(),
     ]).then(([{ data }, flagMap, checkMap]) => {
       if (data) {
-        setItems(data.map((d: any) => ({ epId: d.id, empresa: d.empresas as Empresa, coluna: d.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: d.has_red_flag, redFlagComments: flagMap.get(d.empresa_id) || [], checklist: checkMap.get(d.empresa_id) })))
+        setItems(data.map((d: any) => ({ epId: d.id, empresa: d.empresas as Empresa, coluna: d.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: d.has_red_flag, colunaDesde: d.coluna_desde, redFlagComments: flagMap.get(d.empresa_id) || [], checklist: checkMap.get(d.empresa_id) })))
       }
     })
+
+    // Cascata numa árvore de tarefas dispara N eventos de uma vez; o debounce
+    // transforma a rajada num único refetch.
+    let timerChecklist: ReturnType<typeof setTimeout> | undefined
+    let timerComments: ReturnType<typeof setTimeout> | undefined
 
     const ch = supabase.channel(`ep-${selectedId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empresa_plataforma', filter: `plataforma_id=eq.${selectedId}` }, async (p) => {
@@ -181,7 +225,7 @@ export function Board() {
           const { data: emp } = await supabase.from('empresas').select('*').eq('id', rec.empresa_id).single()
           if (!emp) return
           const [flagMap, checkMap] = await Promise.all([fetchRedFlagComments(selectedId), fetchChecklists()])
-          const item: BoardItem = { epId: rec.id, empresa: emp, coluna: rec.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: rec.has_red_flag, redFlagComments: flagMap.get(rec.empresa_id) || [], checklist: checkMap.get(rec.empresa_id) }
+          const item: BoardItem = { epId: rec.id, empresa: emp, coluna: rec.coluna as ColunaId, plataformaId: selectedId, hasRedFlag: rec.has_red_flag, colunaDesde: rec.coluna_desde, redFlagComments: flagMap.get(rec.empresa_id) || [], checklist: checkMap.get(rec.empresa_id) }
           if (p.eventType === 'INSERT') {
             setItems(prev => prev.some(i => i.epId === rec.id) ? prev : [...prev, item])
           } else {
@@ -196,20 +240,28 @@ export function Board() {
       .subscribe()
 
     const chComments = supabase.channel(`comentarios-${selectedId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios', filter: `plataforma_id=eq.${selectedId}` }, async () => {
-        const flagMap = await fetchRedFlagComments(selectedId)
-        setItems(prev => prev.map(i => ({ ...i, redFlagComments: flagMap.get(i.empresa.id) || [] })))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comentarios', filter: `plataforma_id=eq.${selectedId}` }, () => {
+        clearTimeout(timerComments)
+        timerComments = setTimeout(async () => {
+          const flagMap = await fetchRedFlagComments(selectedId)
+          setItems(prev => prev.map(i => ({ ...i, redFlagComments: flagMap.get(i.empresa.id) || [] })))
+        }, 600)
       })
       .subscribe()
 
     const chChecklist = supabase.channel(`checklist-board-${selectedId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, async () => {
-        const checkMap = await fetchChecklists()
-        setItems(prev => prev.map(i => ({ ...i, checklist: checkMap.get(i.empresa.id) })))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, () => {
+        clearTimeout(timerChecklist)
+        timerChecklist = setTimeout(async () => {
+          const checkMap = await fetchChecklists()
+          setItems(prev => prev.map(i => ({ ...i, checklist: checkMap.get(i.empresa.id) })))
+        }, 600)
       })
       .subscribe()
 
     return () => {
+      clearTimeout(timerChecklist)
+      clearTimeout(timerComments)
       supabase.removeChannel(ch)
       supabase.removeChannel(chComments)
       supabase.removeChannel(chChecklist)
@@ -228,8 +280,10 @@ export function Board() {
     const item = items.find(i => i.epId === epId)
     if (!item || item.coluna === newColuna) return
 
-    setItems(prev => prev.map(i => i.epId === epId ? { ...i, coluna: newColuna } : i))
-    await supabase.from('empresa_plataforma').update({ coluna: newColuna }).eq('id', epId)
+    // coluna_desde renova a cada troca de coluna — é a base do SLA.
+    const agora = new Date().toISOString()
+    setItems(prev => prev.map(i => i.epId === epId ? { ...i, coluna: newColuna, colunaDesde: agora } : i))
+    await supabase.from('empresa_plataforma').update({ coluna: newColuna, coluna_desde: agora }).eq('id', epId)
   }, [items])
 
   const handleAddCard = useCallback((colunaId: ColunaId) => {
@@ -336,13 +390,23 @@ export function Board() {
 
   // Busca em todos os campos da empresa, não só nome/CNPJ. `ondeEscondido`
   // marca no card quando o resultado casou por um campo que o card não mostra.
-  const filtradas = busca
+  const buscadas = busca
     ? items.reduce<BoardItem[]>((acc, i) => {
         const r = buscar(i.empresa, busca)
         if (r.achou) acc.push({ ...i, buscaEm: r.ondeEscondido })
         return acc
       }, [])
     : items
+
+  // "Minhas tarefas" compõe com a busca: card fica se tem pendência minha.
+  const filtradas = soMinhas && usuario
+    ? buscadas.filter(i => i.checklist?.pendentes.some(p => p.responsavel === usuario.nome))
+    : buscadas
+
+  // Regra da plataforma atual vence; sem ela, vale a global (plataforma_id null).
+  const slaPara = (coluna: ColunaId) =>
+    slas.find(s => s.plataforma_id === selectedId && s.coluna === coluna)?.max_dias ??
+    slas.find(s => s.plataforma_id === null && s.coluna === coluna)?.max_dias
 
   const darken = (hex: string) => {
     const n = parseInt(hex.slice(1), 16)
@@ -387,17 +451,19 @@ export function Board() {
               </button>
             )}
 
+            <button onClick={() => setShowSlaConfig(true)} className="p-2 text-white/50 hover:text-white hover:bg-white/15 rounded-lg transition-colors" title="SLA por coluna">
+              <Timer className="w-5 h-5" />
+            </button>
+
             <button onClick={() => setShowBgPicker(true)} className="p-2 text-white/50 hover:text-white hover:bg-white/15 rounded-lg transition-colors" title="Cor de fundo">
               <Palette className="w-5 h-5" />
             </button>
-
-            <UserMenu />
           </div>
         </div>
 
         {/* Busca centralizada */}
         {selectedId && (
-          <div className="flex justify-center">
+          <div className="flex justify-center items-center gap-2">
             <div className="relative w-full max-w-xl">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
               <input
@@ -422,6 +488,16 @@ export function Board() {
                 </div>
               )}
             </div>
+
+            <button
+              onClick={() => setSoMinhas(v => !v)}
+              title="Só cards com tarefas pendentes atribuídas a mim"
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                soMinhas ? 'bg-white text-text-primary' : 'bg-white/15 text-white/70 hover:text-white hover:bg-white/25'
+              }`}
+            >
+              <CircleUserRound className="w-4 h-4" /> Minhas tarefas
+            </button>
           </div>
         )}
       </div>
@@ -465,6 +541,7 @@ export function Board() {
                 coluna={col}
                 items={filtradas.filter(i => i.coluna === col.id)}
                 plataformaId={selectedId}
+                slaMaxDias={slaPara(col.id)}
                 onAddCard={() => handleAddCard(col.id)}
                 onEditCard={handleEditCard}
                 onRemoveCard={handleRemoveCard}
@@ -489,6 +566,8 @@ export function Board() {
           onClose={() => { setShowForm(false); setEditingEmpresa(null) }}
         />
       )}
+
+      {showSlaConfig && <SlaConfigModal slas={slas} onClose={() => setShowSlaConfig(false)} />}
 
       {showBgPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowBgPicker(false)}>

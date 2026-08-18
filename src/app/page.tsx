@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 export default function Home() {
   return (
-    <main className="h-screen flex flex-col">
+    <main className="h-full flex flex-col">
       <Board />
     </main>
   )

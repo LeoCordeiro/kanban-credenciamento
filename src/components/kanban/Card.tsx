@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Empresa, ChecklistResumo } from '@/types/kanban'
-import { GripVertical, Pencil, Trash2, Globe, Mail, Phone, Flag, ListChecks, MessageCircle } from 'lucide-react'
+import { GripVertical, Pencil, Trash2, Globe, Mail, Phone, Flag, ListChecks, MessageCircle, Timer } from 'lucide-react'
 import { temWhatsapp } from '../ZapPanel'
 
 interface Props {
@@ -15,6 +15,9 @@ interface Props {
   redFlagComments?: string[]
   checklist?: ChecklistResumo
   buscaEm?: string[]
+  colunaDesde?: string
+  slaMaxDias?: number
+  colunaNome?: string
   overlay?: boolean
   onEdit?: () => void
   onRemove?: () => void
@@ -27,12 +30,17 @@ function formatCNPJ(cnpj: string) {
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
 
-export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, buscaEm, overlay, onEdit, onRemove, onAbrirZap }: Props) {
+export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, buscaEm, colunaDesde, slaMaxDias, colunaNome, overlay, onEdit, onRemove, onAbrirZap }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId })
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
 
   const hasFlag = hasRedFlag
+
+  // SLA de coluna: cálculo puro no render — qualquer re-render atualiza.
+  const diasNaColuna = colunaDesde ? Math.floor((Date.now() - new Date(colunaDesde).getTime()) / 86_400_000) : null
+  const slaEstourado = slaMaxDias != null && diasNaColuna != null && diasNaColuna > slaMaxDias
+  const temAtraso = !!checklist?.pendentes.some(p => p.atrasada)
 
   return (
     <div
@@ -41,7 +49,11 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
       className={`group bg-card-bg rounded-lg shadow-sm transition-shadow cursor-pointer ${
         isDragging ? 'opacity-40' : ''
       } ${overlay ? 'shadow-xl rotate-3 scale-105' : 'hover:shadow-md'} ${
-        hasFlag ? 'border-2 border-red-500 ring-1 ring-red-200' : 'border border-transparent'
+        hasFlag
+          ? 'border-2 border-red-500 ring-1 ring-red-200'
+          : slaEstourado
+            ? 'border border-transparent border-l-4 border-l-amber-500'
+            : 'border border-transparent'
       }`}
     >
       {/* Colored top stripe */}
@@ -114,31 +126,52 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
           </p>
         )}
 
-        {checklist && checklist.total > 0 && (
-          <div className="relative group/check inline-flex items-center gap-1 mt-1.5">
-            <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                checklist.feitos === checklist.total
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-amber-100 text-amber-700'
-              }`}
-            >
-              <ListChecks className="w-3 h-3" />
-              {checklist.feitos}/{checklist.total}
-            </span>
+        {(checklist && checklist.total > 0) || slaEstourado ? (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {checklist && checklist.total > 0 && (
+              <div className="relative group/check inline-flex items-center gap-1">
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                    temAtraso
+                      ? 'bg-red-100 text-red-700'
+                      : checklist.feitos === checklist.total
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  <ListChecks className="w-3 h-3" />
+                  {checklist.feitos}/{checklist.total}
+                </span>
 
-            {checklist.pendentes.length > 0 && (
-              <div className="hidden group-hover/check:block absolute z-20 left-0 top-full mt-1 w-52 bg-white text-text-primary text-[11px] rounded-lg shadow-xl border border-border p-2">
-                <p className="font-semibold text-text-secondary mb-1">Pendentes</p>
-                <ul className="space-y-0.5">
-                  {checklist.pendentes.map((t, i) => (
-                    <li key={i} className="leading-snug">• {t}</li>
-                  ))}
-                </ul>
+                {checklist.pendentes.length > 0 && (
+                  <div className="hidden group-hover/check:block absolute z-20 left-0 top-full mt-1 w-56 bg-white text-text-primary text-[11px] rounded-lg shadow-xl border border-border p-2">
+                    <p className="font-semibold text-text-secondary mb-1">
+                      Pendentes{temAtraso && <span className="text-red-600"> · {checklist.pendentes.filter(p => p.atrasada).length} em atraso</span>}
+                    </p>
+                    <ul className="space-y-0.5">
+                      {checklist.pendentes.map((p, i) => (
+                        <li key={i} className={`leading-snug ${p.atrasada ? 'text-red-700' : ''}`}>
+                          • {p.etapa && p.etapa !== p.titulo ? `${p.etapa} → ` : ''}{p.titulo}
+                          {p.responsavel && <span className="text-text-muted capitalize"> · {p.responsavel}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
+
+            {slaEstourado && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800"
+                title={`Há ${diasNaColuna} dias em ${colunaNome ?? 'esta coluna'} (SLA: ${slaMaxDias})`}
+              >
+                <Timer className="w-3 h-3" />
+                {diasNaColuna}d
+              </span>
+            )}
           </div>
-        )}
+        ) : null}
 
         {(empresa.site || empresa.emails || empresa.whatsapp) && (
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-2 pt-2 border-t border-border">

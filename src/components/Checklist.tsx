@@ -3,12 +3,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
-import { ChecklistItem } from '@/types/kanban'
-import { Check, Plus, Trash2, ListChecks } from 'lucide-react'
+import { Tarefa, Usuario } from '@/types/kanban'
+import { montarArvore, folhasDe, estadoEfetivo, idsComDescendentes } from '@/lib/tarefas'
+import { TarefaLinha, TarefaHandlers } from '@/components/TarefaLinha'
+import { Plus, ListChecks } from 'lucide-react'
 
 export function Checklist({ empresaId }: { empresaId: string }) {
   const { usuario } = useAuth()
-  const [itens, setItens] = useState<ChecklistItem[]>([])
+  const [itens, setItens] = useState<Tarefa[]>([])
+  const [usuarios, setUsuarios] = useState<string[]>([])
   const [novo, setNovo] = useState('')
 
   const carregar = useCallback(async () => {
@@ -23,6 +26,9 @@ export function Checklist({ empresaId }: { empresaId: string }) {
 
   useEffect(() => {
     carregar()
+    supabase.rpc('listar_usuarios').then(({ data }) => {
+      if (data) setUsuarios((data as Usuario[]).filter(u => u.ativo !== false).map(u => u.nome))
+    })
 
     const ch = supabase.channel(`checklist-${empresaId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens', filter: `empresa_id=eq.${empresaId}` }, () => carregar())
@@ -31,15 +37,54 @@ export function Checklist({ empresaId }: { empresaId: string }) {
     return () => { supabase.removeChannel(ch) }
   }, [empresaId, carregar])
 
-  async function alternar(item: ChecklistItem) {
-    const concluido = !item.concluido
+  const filhos = montarArvore(itens)
+  const raizes = filhos.get('raiz') ?? []
+
+  async function alternar(item: Tarefa) {
+    const ehPai = (filhos.get(item.id) ?? []).length > 0
+    const concluido = ehPai ? !estadoEfetivo(item, filhos) : !item.concluido
     const patch = {
       concluido,
       concluido_em: concluido ? new Date().toISOString() : null,
       concluido_por: concluido ? usuario?.nome ?? null : null,
     }
-    setItens(prev => prev.map(i => i.id === item.id ? { ...i, ...patch } : i))
-    await supabase.from('checklist_itens').update(patch).eq('id', item.id)
+    // Pai cascateia para todos os descendentes num único update.
+    const ids = ehPai
+      ? idsComDescendentes(item, filhos).filter(id => {
+          const t = itens.find(i => i.id === id)
+          return t && t.concluido !== concluido
+        })
+      : [item.id]
+    if (ids.length === 0) return
+    setItens(prev => prev.map(i => ids.includes(i.id) ? { ...i, ...patch } : i))
+    await supabase.from('checklist_itens').update(patch).in('id', ids)
+  }
+
+  async function addSub(parentId: string, titulo: string) {
+    await supabase.from('checklist_itens').insert({
+      empresa_id: empresaId,
+      titulo,
+      parent_id: parentId,
+      ordem: (filhos.get(parentId) ?? []).length,
+    })
+    carregar()
+  }
+
+  async function salvarMeta(item: Tarefa, prazo: string | null, responsavel: string | null) {
+    setItens(prev => prev.map(i => i.id === item.id ? { ...i, prazo, responsavel } : i))
+    await supabase.from('checklist_itens').update({ prazo, responsavel }).eq('id', item.id)
+  }
+
+  async function renomear(item: Tarefa, titulo: string) {
+    setItens(prev => prev.map(i => i.id === item.id ? { ...i, titulo } : i))
+    await supabase.from('checklist_itens').update({ titulo }).eq('id', item.id)
+  }
+
+  async function remover(item: Tarefa) {
+    const ids = idsComDescendentes(item, filhos)
+    setItens(prev => prev.filter(i => !ids.includes(i.id)))
+    // on delete cascade do banco remove os filhos junto.
+    await supabase.from('checklist_itens').delete().eq('id', item.id)
   }
 
   async function adicionar(e: React.FormEvent) {
@@ -50,14 +95,9 @@ export function Checklist({ empresaId }: { empresaId: string }) {
     await supabase.from('checklist_itens').insert({
       empresa_id: empresaId,
       titulo,
-      ordem: itens.length,
+      ordem: raizes.length,
     })
     carregar()
-  }
-
-  async function remover(id: string) {
-    setItens(prev => prev.filter(i => i.id !== id))
-    await supabase.from('checklist_itens').delete().eq('id', id)
   }
 
   /** Marca tudo que falta; com tudo já feito, o mesmo botão desmarca. */
@@ -75,17 +115,28 @@ export function Checklist({ empresaId }: { empresaId: string }) {
     await supabase.from('checklist_itens').update(patch).in('id', alvos)
   }
 
-  const feitos = itens.filter(i => i.concluido).length
-  const total = itens.length
+  // Progresso conta folhas: contar pais junto duplicaria o mesmo trabalho.
+  const folhasTodas = raizes.flatMap(r => folhasDe(r, filhos))
+  const feitos = folhasTodas.filter(f => f.concluido).length
+  const total = folhasTodas.length
   const pct = total ? Math.round((feitos / total) * 100) : 0
-
   const completo = feitos === total && total > 0
+
+  const handlers: TarefaHandlers = {
+    filhos,
+    usuarios,
+    onAlternar: alternar,
+    onAddSub: addSub,
+    onSalvarMeta: salvarMeta,
+    onRenomear: renomear,
+    onRemover: remover,
+  }
 
   return (
     <section className="bg-white border border-border rounded-xl shadow-sm overflow-hidden shrink-0">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-transparent">
         <ListChecks className="w-3.5 h-3.5 text-text-muted" />
-        <h2 className="text-base font-semibold text-text-primary">Checklist</h2>
+        <h2 className="text-base font-semibold text-text-primary">Tarefas</h2>
         <div className="ml-auto flex items-center gap-2">
           {total > 0 && (
             <button
@@ -98,7 +149,7 @@ export function Checklist({ empresaId }: { empresaId: string }) {
           )}
           {/* Barra de progresso na própria linha do título: informa o mesmo
               sem gastar uma faixa de altura só para ela. */}
-          <div className="w-24 h-1 bg-[#f4f5f7] rounded-full overflow-hidden">
+          <div className="w-24 h-1 bg-surface-sunken rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-[width] duration-200 ${completo ? 'bg-green-500' : 'bg-btn-primary'}`}
               style={{ width: `${pct}%` }}
@@ -110,49 +161,21 @@ export function Checklist({ empresaId }: { empresaId: string }) {
         </div>
       </div>
 
-      {/* Teto para o checklist não empurrar a coluna inteira quando a empresa
-          acumula muitos itens — a lista rola em si mesma. */}
+      {/* Teto para a lista não empurrar a coluna inteira quando a empresa
+          acumula muitas tarefas — a lista rola em si mesma. */}
       <div className="scroll-fino max-h-[40vh] overflow-y-auto divide-y divide-border">
-        {itens.map(item => (
-          <div key={item.id} className="group flex items-center gap-2 px-4 py-2 hover:bg-card-hover transition-colors">
-            <button
-              onClick={() => alternar(item)}
-              title={item.concluido ? 'Desmarcar' : 'Marcar como feito'}
-              className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                item.concluido
-                  ? 'bg-green-500 border-green-500 text-white'
-                  : 'border-text-muted/50 hover:border-btn-primary hover:bg-btn-primary/5'
-              }`}
-            >
-              {item.concluido && <Check className="w-3 h-3" strokeWidth={3} />}
-            </button>
-
-            <span className={`flex-1 min-w-0 truncate text-sm ${item.concluido ? 'text-text-muted line-through' : 'text-text-primary'}`}>
-              {item.titulo}
-            </span>
-
-            {item.concluido && item.concluido_por && (
-              <span className="text-xs text-text-secondary capitalize shrink-0">{item.concluido_por}</span>
-            )}
-
-            <button
-              onClick={() => remover(item.id)}
-              title="Remover item"
-              className="opacity-0 group-hover:opacity-100 p-0.5 text-text-secondary hover:text-red-500 transition-all shrink-0"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+        {raizes.map(item => (
+          <TarefaLinha key={item.id} item={item} nivel={0} h={handlers} />
         ))}
-        {total === 0 && <p className="text-sm text-text-secondary px-4 py-3">Nenhum item no checklist.</p>}
+        {total === 0 && <p className="text-sm text-text-secondary px-4 py-3">Nenhuma tarefa.</p>}
       </div>
 
       <form onSubmit={adicionar} className="flex gap-2 border-t border-border p-3">
         <input
           value={novo}
           onChange={e => setNovo(e.target.value)}
-          placeholder="Adicionar item..."
-          className="flex-1 min-w-0 px-2 py-1 bg-[#f4f5f7] border border-border rounded text-sm leading-5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary focus:ring-2 focus:ring-btn-primary/20 transition-colors"
+          placeholder="Adicionar etapa..."
+          className="flex-1 min-w-0 px-2 py-1 bg-surface-sunken border border-border rounded text-sm leading-5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary focus:ring-2 focus:ring-btn-primary/20 transition-colors"
         />
         <button
           type="submit"

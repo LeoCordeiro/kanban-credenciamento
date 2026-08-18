@@ -73,8 +73,15 @@ export interface ChecklistItem {
   ordem: number
   concluido_em: string | null
   concluido_por: string | null
+  parent_id: string | null
+  prazo: string | null
+  responsavel: string | null
+  modelo_id: string | null
   created_at: string
 }
+
+/** Na UI o conceito virou "tarefa" — mesma tabela checklist_itens. */
+export type Tarefa = ChecklistItem
 
 export interface ChecklistModeloItem {
   id: string
@@ -97,13 +104,23 @@ export interface EmpresaPlataforma {
   coluna: ColunaId
   posicao: number
   has_red_flag?: boolean
+  coluna_desde?: string
   created_at: string
+}
+
+export interface PendenteResumo {
+  titulo: string
+  /** Título da etapa raiz a que a tarefa pertence (vazio se ela própria é raiz). */
+  etapa: string
+  responsavel: string | null
+  prazo: string | null
+  atrasada: boolean
 }
 
 export interface ChecklistResumo {
   feitos: number
   total: number
-  pendentes: string[]
+  pendentes: PendenteResumo[]
 }
 
 export interface BoardItem {
@@ -114,8 +131,39 @@ export interface BoardItem {
   hasRedFlag?: boolean
   redFlagComments?: string[]
   checklist?: ChecklistResumo
+  colunaDesde?: string
   /** Campos que casaram com a busca e não aparecem no card (ex.: CPF, Endereço). */
   buscaEm?: string[]
+}
+
+export interface SlaColuna {
+  id: string
+  plataforma_id: string | null
+  coluna: ColunaId
+  max_dias: number
+  created_at: string
+}
+
+export interface Documento {
+  id: string
+  titulo: string
+  categoria: string | null
+  conteudo: string | null
+  url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Acesso {
+  id: string
+  titulo: string
+  categoria: string | null
+  url: string | null
+  usuario: string | null
+  senha: string | null
+  notas: string | null
+  created_at: string
+  updated_at: string
 }
 
 export const COLUNAS: { id: ColunaId; nome: string; cor: string }[] = [

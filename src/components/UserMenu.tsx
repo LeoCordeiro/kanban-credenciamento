@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { Usuario } from '@/types/kanban'
-import { LogOut, Users, KeyRound, X, Plus, UserCheck, UserX, Loader2, ListChecks } from 'lucide-react'
+import { Modal } from '@/components/ui/Modal'
+import { LogOut, Users, KeyRound, Plus, UserCheck, UserX, Loader2 } from 'lucide-react'
 
+/** Avatar no pé do rail de navegação; dropdown abre para cima e para a direita. */
 export function UserMenu() {
   const { usuario, sair } = useAuth()
   const [aberto, setAberto] = useState(false)
@@ -19,37 +20,33 @@ export function UserMenu() {
       <div className="relative">
         <button
           onClick={() => setAberto(v => !v)}
-          className="flex items-center gap-2 pl-2 pr-3 py-1.5 text-sm text-white/80 hover:text-white hover:bg-white/15 rounded-lg transition-colors font-medium"
+          title={usuario.nome}
+          className="flex items-center justify-center w-10 h-10 rounded-lg text-white/80 hover:text-white hover:bg-white/15 transition-colors"
         >
           <span className="w-7 h-7 rounded-full bg-white/25 flex items-center justify-center text-xs font-bold uppercase">
             {usuario.nome.slice(0, 2)}
           </span>
-          <span className="capitalize">{usuario.nome}</span>
         </button>
 
         {aberto && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setAberto(false)} />
-            <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-white rounded-lg shadow-xl border border-border py-1">
+            <div className="absolute left-full bottom-0 ml-2 z-50 w-52 bg-white rounded-lg shadow-xl border border-border py-1">
+              <div className="px-3 py-2 text-sm font-semibold text-text-primary capitalize border-b border-border mb-1">
+                {usuario.nome}
+              </div>
               <button
                 onClick={() => { setModal('senha'); setAberto(false) }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#f4f5f7] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-surface-sunken transition-colors"
               >
                 <KeyRound className="w-4 h-4 text-text-muted" /> Alterar minha senha
               </button>
               <button
                 onClick={() => { setModal('usuarios'); setAberto(false) }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#f4f5f7] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-surface-sunken transition-colors"
               >
                 <Users className="w-4 h-4 text-text-muted" /> Gerenciar usuários
               </button>
-              <Link
-                href="/checklist"
-                onClick={() => setAberto(false)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#f4f5f7] transition-colors"
-              >
-                <ListChecks className="w-4 h-4 text-text-muted" /> Checklist padrão
-              </Link>
               <div className="h-px bg-border my-1" />
               <button
                 onClick={sair}
@@ -100,15 +97,7 @@ function UsuariosModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-lg font-semibold text-text-primary">Usuários</h2>
-          <button onClick={onClose} className="p-1 text-text-muted hover:text-text-secondary">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Modal titulo="Usuários" onClose={onClose}>
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {carregando && <Loader2 className="w-5 h-5 animate-spin text-text-muted mx-auto my-4" />}
           {lista.map(u => (
@@ -157,8 +146,7 @@ function UsuariosModal({ onClose }: { onClose: () => void }) {
           </div>
           <p className="text-xs text-text-muted">A senha precisa ter ao menos 6 caracteres.</p>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -179,14 +167,7 @@ function SenhaModal({ usuarioId, onClose }: { usuarioId: string; onClose: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-lg font-semibold text-text-primary">Alterar senha</h2>
-          <button onClick={onClose} className="p-1 text-text-muted hover:text-text-secondary">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Modal titulo="Alterar senha" onClose={onClose} maxWidth="max-w-sm">
         <form onSubmit={salvar} className="p-5 space-y-3">
           <input
             autoFocus
@@ -213,7 +194,6 @@ function SenhaModal({ usuarioId, onClose }: { usuarioId: string; onClose: () => 
             Salvar
           </button>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }

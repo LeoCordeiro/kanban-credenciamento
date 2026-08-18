@@ -1,9 +1,9 @@
 # Kanban Credenciamento
 
-Sistema Kanban simples para gerenciar credenciamento de empresas. Login próprio, tempo real, drag-and-drop.
+Sistema de gestão tipo Jira/ClickUp para credenciamento de empresas. Login próprio, tempo real, drag-and-drop, tarefas aninhadas, SLA e seções globais.
 
 ## O que é
-Board Kanban com 5 colunas onde cards de empresas transitam entre etapas do processo de credenciamento. Vários usuários acessam simultâneamente com atualização em tempo real.
+Board Kanban com 5 colunas onde cards de empresas transitam entre etapas do processo de credenciamento. Vários usuários acessam simultâneamente com atualização em tempo real. Navegação por sidebar rail (`AppNav.tsx`): Board, Atrasos, Documentações, Acessos, Checklist padrão.
 
 ## Autenticação
 Login próprio (tabela `usuarios`), **não** Supabase Auth — o Auth do projeto está com
@@ -15,13 +15,33 @@ então a anon key não lê o hash. Usuários iniciais: leonardo, gabriel, emerso
 Isso protege o acesso à interface. Não é uma barreira de dados: a anon key continua
 com acesso direto às demais tabelas, como já era antes do login existir.
 
-## Checklist
-Cada empresa nasce com 7 itens (Criar Negócio, Logo, Domínio, E-mail, Instagram, Site,
-Reclame Aqui) via trigger em `empresas`. O checklist é **da empresa**, não da plataforma —
-logo/domínio/site são únicos por empresa, então os pendentes são os mesmos em qualquer quadro.
+## Tarefas (ex-checklist)
+Cada empresa nasce com as etapas do `checklist_modelo` (editável em `/checklist`) via trigger
+em `empresas`. As tarefas são **da empresa**, não da plataforma. Desde a migração 005 a tabela
+`checklist_itens` é uma árvore (`parent_id` auto-referente): empresa → etapa → subtarefa →
+sub-subtarefa (máx. 3 níveis, imposto na UI em `TarefaLinha.tsx`). Cada tarefa tem `prazo date`
+e `responsavel text` (dropdown de `listar_usuarios`). Pai não tem estado próprio: seu concluído
+é o E-lógico das folhas; marcar pai cascateia. Badges e progresso contam **só folhas**.
+O vínculo item↔modelo é por `modelo_id` (FK), não mais por título.
+
+## SLA
+- **Prazo por tarefa**: vencida = chip vermelho na ficha, badge vermelho no card, linha em `/atrasos`.
+- **Tempo por coluna**: `empresa_plataforma.coluna_desde` (renovado no drag) × `sla_colunas`
+  (`plataforma_id` null = regra global; UI do modal Timer no board edita só a global).
+  Estourou = borda âmbar + chip `⏱ Nd` no card + linha em `/atrasos`.
+- **Minhas tarefas**: chip ao lado da busca filtra cards com pendência do usuário logado.
+
+## Seções globais (da NOSSA empresa, não das credenciadas)
+- `/documentacoes` — tabela `documentos` {titulo, categoria, conteudo, url}; upload opcional no bucket `empresas/documentos/`.
+- `/acessos` — tabela `acessos` {titulo, categoria, url, usuario, senha, notas}. Senha em texto
+  simples por decisão consciente (login protege a interface, não os dados — igual `credenciais`).
+- `/atrasos` — visão cross-plataforma de tarefas vencidas + cards estourando SLA.
 
 ## Migrações
-`supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes.
+`supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes. A 005 (tarefas aninhadas,
+SLA, documentos, acessos) foi aplicada em 18/08/2026 — rodada 2x para provar idempotência.
+Não existe 001 baseline: as tabelas base (empresas, plataformas, empresa_plataforma,
+comentarios, anexos, credenciais) foram criadas à mão e não estão versionadas.
 
 ## Colunas
 1. **A Analisar** — empresa recém cadastrada, aguardando análise
