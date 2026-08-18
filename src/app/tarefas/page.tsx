@@ -82,7 +82,7 @@ export default function TarefasModeloPage() {
       // que ainda não foi rodada no SQL Editor.
       setErro(
         /schema cache|does not exist/i.test(error.message)
-          ? 'Esta tela precisa das migrações supabase/003 a 007, que ainda não foram rodadas no SQL Editor do Supabase.'
+          ? 'Esta tela precisa da migração supabase/007_sla_horas_instrucoes_do_tipo.sql, que ainda não foi rodada no SQL Editor do Supabase.'
           : 'Não consegui carregar as tarefas: ' + error.message
       )
     } else {
