@@ -17,13 +17,29 @@ export function Checklist({ empresaId }: { empresaId: string }) {
   const [abertaId, setAbertaId] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
-    const { data } = await supabase
+    // As instruções vêm do tipo (join), não copiadas: corrigir o texto em
+    // /tarefas reflete aqui na hora, em todas as empresas.
+    const { data, error } = await supabase
       .from('checklist_itens')
-      .select('*')
+      .select('*, modelo:checklist_modelo(instrucoes)')
       .eq('empresa_id', empresaId)
       .order('ordem')
       .order('created_at')
-    if (data) setItens(data)
+
+    if (data) { setItens(data as Tarefa[]); return }
+
+    // Migração é manual neste projeto, então existe uma janela em que o código
+    // novo roda contra o banco antigo. Sem o fallback, a ficha inteira ficaria
+    // sem tarefas até alguém rodar o SQL.
+    if (error) {
+      const { data: simples } = await supabase
+        .from('checklist_itens')
+        .select('*')
+        .eq('empresa_id', empresaId)
+        .order('ordem')
+        .order('created_at')
+      if (simples) setItens(simples as Tarefa[])
+    }
   }, [empresaId])
 
   useEffect(() => {

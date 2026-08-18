@@ -6,14 +6,53 @@ export function hojeISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** Com SLA em horas o prazo é um instante — vence na hora, não no fim do dia. */
 export function prazoVencido(prazo: string | null, concluido: boolean) {
-  return !!prazo && !concluido && prazo.slice(0, 10) < hojeISO()
+  return !!prazo && !concluido && new Date(prazo).getTime() < Date.now()
 }
 
-/** dd/mm a partir de "yyyy-mm-dd" sem new Date (data pura não tem fuso). */
+/** Horas restantes até o prazo (negativo = atrasado). */
+export function horasAte(prazo: string) {
+  return (new Date(prazo).getTime() - Date.now()) / 3_600_000
+}
+
+/**
+ * Duração em horas escrita como se lê em voz alta: "6h", "36h", "3d".
+ * Acima de 48h o número de horas para de ajudar e vira contagem de dias.
+ */
+export function formatHoras(horas: number) {
+  const h = Math.round(Math.abs(horas))
+  if (h < 48) return `${h}h`
+  const dias = Math.floor(h / 24)
+  const resto = h % 24
+  return resto === 0 ? `${dias}d` : `${dias}d ${resto}h`
+}
+
+const HORA = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+
+/** Chip curto: hoje e amanhã ganham a hora, o resto fica em dd/mm. */
 export function formatPrazo(prazo: string) {
-  const [, mes, dia] = prazo.slice(0, 10).split('-')
-  return `${dia}/${mes}`
+  const d = new Date(prazo)
+  const hoje = new Date()
+  const amanha = new Date(hoje.getTime() + 86_400_000)
+  const mesmoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString()
+  if (mesmoDia(d, hoje)) return `hoje ${HORA(d)}`
+  if (mesmoDia(d, amanha)) return `amanhã ${HORA(d)}`
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Data e hora por extenso, para tooltip. */
+export function formatPrazoCompleto(prazo: string) {
+  const d = new Date(prazo)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} às ${HORA(d)}`
+}
+
+/** Valor para <input type="datetime-local">, que só aceita hora local sem fuso. */
+export function paraInputDateTime(iso: string | null) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 /** Map parent_id → filhos ordenados. Raízes ficam na chave 'raiz'. */

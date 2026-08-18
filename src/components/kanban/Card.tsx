@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Empresa, ChecklistResumo } from '@/types/kanban'
+import { formatHoras } from '@/lib/tarefas'
 import { GripVertical, Pencil, Trash2, Globe, Mail, Phone, Flag, ListChecks, MessageCircle, Timer } from 'lucide-react'
 import { temWhatsapp } from '../ZapPanel'
 
@@ -16,7 +17,7 @@ interface Props {
   checklist?: ChecklistResumo
   buscaEm?: string[]
   colunaDesde?: string
-  slaMaxDias?: number
+  slaMaxHoras?: number
   colunaNome?: string
   overlay?: boolean
   onEdit?: () => void
@@ -30,7 +31,7 @@ function formatCNPJ(cnpj: string) {
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
 
-export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, buscaEm, colunaDesde, slaMaxDias, colunaNome, overlay, onEdit, onRemove, onAbrirZap }: Props) {
+export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComments, checklist, buscaEm, colunaDesde, slaMaxHoras, colunaNome, overlay, onEdit, onRemove, onAbrirZap }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId })
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
@@ -38,8 +39,8 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
   const hasFlag = hasRedFlag
 
   // SLA de coluna: cálculo puro no render — qualquer re-render atualiza.
-  const diasNaColuna = colunaDesde ? Math.floor((Date.now() - new Date(colunaDesde).getTime()) / 86_400_000) : null
-  const slaEstourado = slaMaxDias != null && diasNaColuna != null && diasNaColuna > slaMaxDias
+  const horasNaColuna = colunaDesde ? (Date.now() - new Date(colunaDesde).getTime()) / 3_600_000 : null
+  const slaEstourado = slaMaxHoras != null && horasNaColuna != null && horasNaColuna > slaMaxHoras
   const temAtraso = !!checklist?.pendentes.some(p => p.atrasada)
 
   return (
@@ -171,10 +172,10 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
             {slaEstourado && (
               <span
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800"
-                title={`Há ${diasNaColuna} dias em ${colunaNome ?? 'esta coluna'} (SLA: ${slaMaxDias})`}
+                title={`Há ${formatHoras(horasNaColuna!)} em ${colunaNome ?? 'esta coluna'} — SLA de ${formatHoras(slaMaxHoras!)}`}
               >
                 <Timer className="w-3 h-3" />
-                {diasNaColuna}d
+                {formatHoras(horasNaColuna!)}
               </span>
             )}
           </div>

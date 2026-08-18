@@ -407,8 +407,8 @@ export function Board() {
 
   // Regra da plataforma atual vence; sem ela, vale a global (plataforma_id null).
   const slaPara = (coluna: ColunaId) =>
-    slas.find(s => s.plataforma_id === selectedId && s.coluna === coluna)?.max_dias ??
-    slas.find(s => s.plataforma_id === null && s.coluna === coluna)?.max_dias
+    slas.find(s => s.plataforma_id === selectedId && s.coluna === coluna)?.max_horas ??
+    slas.find(s => s.plataforma_id === null && s.coluna === coluna)?.max_horas
 
   const darken = (hex: string) => {
     const n = parseInt(hex.slice(1), 16)
@@ -543,7 +543,7 @@ export function Board() {
                 coluna={col}
                 items={filtradas.filter(i => i.coluna === col.id)}
                 plataformaId={selectedId}
-                slaMaxDias={slaPara(col.id)}
+                slaMaxHoras={slaPara(col.id)}
                 onAddCard={() => handleAddCard(col.id)}
                 onEditCard={handleEditCard}
                 onRemoveCard={handleRemoveCard}

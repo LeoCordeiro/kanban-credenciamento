@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { SlaColuna, ColunaId, COLUNAS, Prioridade, StatusTarefa, PRIORIDADES, STATUS_TAREFA } from '@/types/kanban'
-import { hojeISO, formatPrazo } from '@/lib/tarefas'
+import { formatPrazo, formatPrazoCompleto, formatHoras, horasAte } from '@/lib/tarefas'
 import { Painel, CabecalhoSecao } from '@/components/ui/Painel'
 import { AlarmClock, Timer, CalendarDays, ExternalLink } from 'lucide-react'
 
@@ -28,14 +28,8 @@ interface CardEstourado {
   plataformaNome: string
   plataformaCor: string
   coluna: ColunaId
-  dias: number
-  maxDias: number
-}
-
-function diasDeAtraso(prazo: string) {
-  const [a, m, d] = prazo.slice(0, 10).split('-').map(Number)
-  const [ha, hm, hd] = hojeISO().split('-').map(Number)
-  return Math.round((Date.UTC(ha, hm - 1, hd) - Date.UTC(a, m - 1, d)) / 86_400_000)
+  horas: number
+  maxHoras: number
 }
 
 export default function AtrasosPage() {
@@ -51,7 +45,7 @@ export default function AtrasosPage() {
           .select('id, titulo, prazo, responsavel, prioridade, status, empresas(id, razao_social)')
           .eq('concluido', false)
           .not('prazo', 'is', null)
-          .lt('prazo', hojeISO())
+          .lt('prazo', new Date().toISOString())
           .order('prazo'),
         supabase
           .from('empresa_plataforma')
@@ -63,16 +57,16 @@ export default function AtrasosPage() {
 
       const regras = (slas ?? []) as SlaColuna[]
       const slaPara = (plataformaId: string, coluna: string) =>
-        regras.find(s => s.plataforma_id === plataformaId && s.coluna === coluna)?.max_dias ??
-        regras.find(s => s.plataforma_id === null && s.coluna === coluna)?.max_dias
+        regras.find(s => s.plataforma_id === plataformaId && s.coluna === coluna)?.max_horas ??
+        regras.find(s => s.plataforma_id === null && s.coluna === coluna)?.max_horas
 
       const estourados: CardEstourado[] = []
       for (const ep of (eps as any[]) ?? []) {
         if (!ep.coluna_desde || !ep.empresas || !ep.plataformas) continue
         const max = slaPara(ep.plataforma_id, ep.coluna)
         if (max == null) continue
-        const dias = Math.floor((Date.now() - new Date(ep.coluna_desde).getTime()) / 86_400_000)
-        if (dias > max) {
+        const horas = (Date.now() - new Date(ep.coluna_desde).getTime()) / 3_600_000
+        if (horas > max) {
           estourados.push({
             epId: ep.id,
             empresaId: ep.empresas.id,
@@ -81,12 +75,12 @@ export default function AtrasosPage() {
             plataformaNome: ep.plataformas.nome,
             plataformaCor: ep.plataformas.cor,
             coluna: ep.coluna,
-            dias,
-            maxDias: max,
+            horas,
+            maxHoras: max,
           })
         }
       }
-      estourados.sort((a, b) => (b.dias - b.maxDias) - (a.dias - a.maxDias))
+      estourados.sort((a, b) => (b.horas - b.maxHoras) - (a.horas - a.maxHoras))
       setCards(estourados)
       setCarregando(false)
     }
@@ -121,7 +115,10 @@ export default function AtrasosPage() {
                   href={t.empresas ? `/empresa/${t.empresas.id}` : '#'}
                   className="flex items-center gap-3 px-4 py-2.5 hover:bg-card-hover transition-colors group"
                 >
-                  <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[11px] font-semibold">
+                  <span
+                    className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[11px] font-semibold"
+                    title={`Venceu em ${formatPrazoCompleto(t.prazo)}`}
+                  >
                     <CalendarDays className="w-3 h-3" /> {formatPrazo(t.prazo)}
                   </span>
                   <span className="text-sm text-text-primary truncate">{t.titulo}</span>
@@ -142,7 +139,7 @@ export default function AtrasosPage() {
                         {t.responsavel.slice(0, 2)}
                       </span>
                     )}
-                    <span className="text-xs text-red-600 font-medium">{diasDeAtraso(t.prazo)}d de atraso</span>
+                    <span className="text-xs text-red-600 font-medium">{formatHoras(horasAte(t.prazo))} de atraso</span>
                     <ExternalLink className="w-3.5 h-3.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                   </span>
                 </Link>
@@ -170,7 +167,7 @@ export default function AtrasosPage() {
                   className="flex items-center gap-3 px-4 py-2.5 hover:bg-card-hover transition-colors group"
                 >
                   <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-semibold">
-                    <Timer className="w-3 h-3" /> {c.dias}d / SLA {c.maxDias}
+                    <Timer className="w-3 h-3" /> {formatHoras(c.horas)} / SLA {formatHoras(c.maxHoras)}
                   </span>
                   <span className="text-sm text-text-primary truncate">{c.razaoSocial}</span>
                   <span className="ml-auto flex items-center gap-2 shrink-0">

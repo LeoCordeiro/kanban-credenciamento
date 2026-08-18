@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { Tarefa, Prioridade, StatusTarefa, PRIORIDADES, STATUS_TAREFA } from '@/types/kanban'
-import { prazoVencido, formatPrazo } from '@/lib/tarefas'
+import { prazoVencido, formatPrazoCompleto, paraInputDateTime, formatHoras } from '@/lib/tarefas'
 import { Modal } from '@/components/ui/Modal'
 import { CAMPO_LABEL, INPUT } from '@/components/ui/Painel'
-import { CalendarDays, UserRound, Flag, Trash2, CornerDownRight } from 'lucide-react'
+import { CalendarDays, UserRound, Flag, Trash2, CornerDownRight, BookOpen } from 'lucide-react'
 
 export interface PatchTarefa {
   titulo?: string
@@ -32,12 +32,16 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
     descricao: tarefa.descricao ?? '',
     prioridade: tarefa.prioridade,
     status: tarefa.status,
-    prazo: tarefa.prazo?.slice(0, 10) ?? '',
+    prazo: paraInputDateTime(tarefa.prazo),
     responsavel: tarefa.responsavel ?? '',
   })
   const [salvando, setSalvando] = useState(false)
 
-  const vencido = prazoVencido(form.prazo || null, form.status === 'concluido')
+  // O input datetime-local devolve hora local sem fuso; new Date() a interpreta
+  // como local, que é o que o usuário quis dizer ao digitar.
+  const prazoISO = form.prazo ? new Date(form.prazo).toISOString() : null
+  const vencido = prazoVencido(prazoISO, form.status === 'concluido')
+  const instrucoes = tarefa.modelo?.instrucoes
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -48,7 +52,7 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
       descricao: form.descricao.trim() || null,
       prioridade: form.prioridade,
       status: form.status,
-      prazo: form.prazo || null,
+      prazo: prazoISO,
       responsavel: form.responsavel || null,
     })
     setSalvando(false)
@@ -76,13 +80,27 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
           />
         </div>
 
+        {/* Instruções vêm do tipo de tarefa e valem para todas as empresas —
+            editar aqui empresa por empresa era exatamente o que atrapalhava. */}
+        {instrucoes && (
+          <div className="rounded-lg border border-border bg-surface-sunken p-3">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary mb-1.5">
+              <BookOpen className="w-3.5 h-3.5" /> Instruções desta tarefa
+            </p>
+            <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{instrucoes}</p>
+            <p className="mt-2 text-xs text-text-muted">
+              Escritas em <a href="/tarefas" className="text-btn-primary hover:underline">Tarefas</a> e válidas para todas as empresas.
+            </p>
+          </div>
+        )}
+
         <div>
-          <label className={CAMPO_LABEL}>Descrição</label>
+          <label className={CAMPO_LABEL}>Observações desta empresa</label>
           <textarea
             value={form.descricao}
             onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))}
-            rows={4}
-            placeholder="O que precisa ser feito, links, observações..."
+            rows={3}
+            placeholder="O que muda nesta empresa: número do protocolo, quem atendeu, pendência específica..."
             className={`${INPUT} resize-y leading-relaxed`}
           />
         </div>
@@ -127,14 +145,14 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
           <div>
             <label className={CAMPO_LABEL}><CalendarDays className="inline w-3 h-3 mb-0.5" /> Prazo</label>
             <input
-              type="date"
+              type="datetime-local"
               value={form.prazo}
               onChange={e => setForm(p => ({ ...p, prazo: e.target.value }))}
               className={`${INPUT} font-mono ${vencido ? 'border-red-400 text-red-700' : ''}`}
             />
-            {vencido && <p className="mt-0.5 text-xs text-red-600">Prazo vencido</p>}
-            {tarefa.sla_dias != null && (
-              <p className="mt-0.5 text-xs text-text-muted">SLA do tipo: {tarefa.sla_dias} dias</p>
+            {vencido && prazoISO && <p className="mt-0.5 text-xs text-red-600">Venceu em {formatPrazoCompleto(prazoISO)}</p>}
+            {tarefa.sla_horas != null && (
+              <p className="mt-0.5 text-xs text-text-muted">SLA do tipo: {formatHoras(tarefa.sla_horas)}</p>
             )}
           </div>
           <div>
@@ -153,7 +171,7 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
         {tarefa.concluido && tarefa.concluido_por && (
           <p className="text-xs text-text-secondary">
             Concluída por <span className="capitalize font-medium">{tarefa.concluido_por}</span>
-            {tarefa.concluido_em && ` em ${formatPrazo(tarefa.concluido_em)}`}
+            {tarefa.concluido_em && ` em ${formatPrazoCompleto(tarefa.concluido_em)}`}
           </p>
         )}
       </form>

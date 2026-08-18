@@ -9,14 +9,14 @@ interface Props {
   coluna: { id: string; nome: string; cor: string }
   items: BoardItem[]
   plataformaId: string
-  slaMaxDias?: number
+  slaMaxHoras?: number
   onAddCard: () => void
   onEditCard: (empresaId: string) => void
   onRemoveCard: (epId: string) => void
   onAbrirZap: (empresa: string, whatsapp: string) => void
 }
 
-export function Column({ coluna, items, plataformaId, slaMaxDias, onAddCard, onEditCard, onRemoveCard, onAbrirZap }: Props) {
+export function Column({ coluna, items, plataformaId, slaMaxHoras, onAddCard, onEditCard, onRemoveCard, onAbrirZap }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.id })
 
   return (
@@ -48,7 +48,7 @@ export function Column({ coluna, items, plataformaId, slaMaxDias, onAddCard, onE
               checklist={item.checklist}
               buscaEm={item.buscaEm}
               colunaDesde={item.colunaDesde}
-              slaMaxDias={slaMaxDias}
+              slaMaxHoras={slaMaxHoras}
               colunaNome={coluna.nome}
               onEdit={() => onEditCard(item.empresa.id)}
               onRemove={() => onRemoveCard(item.epId)}

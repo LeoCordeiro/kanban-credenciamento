@@ -91,26 +91,32 @@ export interface ChecklistItem {
   concluido_em: string | null
   concluido_por: string | null
   parent_id: string | null
+  /** timestamptz — SLA em horas não cabe numa data pura. */
   prazo: string | null
   responsavel: string | null
   modelo_id: string | null
+  /** Observação específica desta empresa. As instruções do tipo vêm do modelo. */
   descricao: string | null
   prioridade: Prioridade
   status: StatusTarefa
-  sla_dias: number | null
+  sla_horas: number | null
   created_at: string
+  /** Vem do join com checklist_modelo — instruções valem para todas as empresas. */
+  modelo?: { instrucoes: string | null } | null
 }
 
 /** Na UI o conceito virou "tarefa" — mesma tabela checklist_itens. */
 export type Tarefa = ChecklistItem
 
+/** Um tipo de tarefa: o que toda empresa nova recebe. Editado em /tarefas. */
 export interface ChecklistModeloItem {
   id: string
   titulo: string
   ordem: number
-  /** SLA do tipo de tarefa: prazo da tarefa nova = data de criação + N dias. */
-  sla_dias: number | null
-  descricao: string | null
+  /** SLA do tipo: prazo da tarefa nova = momento da criação + N horas. */
+  sla_horas: number | null
+  /** Como executar a tarefa. Fica no tipo, vale para todas as empresas. */
+  instrucoes: string | null
   prioridade: Prioridade
   created_at: string
 }
@@ -167,7 +173,7 @@ export interface SlaColuna {
   id: string
   plataforma_id: string | null
   coluna: ColunaId
-  max_dias: number
+  max_horas: number
   created_at: string
 }
 

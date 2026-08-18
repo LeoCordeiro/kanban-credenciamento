@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Tarefa, PRIORIDADES, STATUS_TAREFA } from '@/types/kanban'
-import { folhasDe, estadoEfetivo, statusEfetivo, prazoVencido, formatPrazo } from '@/lib/tarefas'
+import { folhasDe, estadoEfetivo, statusEfetivo, prazoVencido, formatPrazo, formatPrazoCompleto } from '@/lib/tarefas'
 import { Check, Plus, ChevronRight, ChevronDown, CalendarDays, AlignLeft } from 'lucide-react'
 
 /** Profundidade máxima abaixo da empresa: etapa (0) → subtarefa (1) → sub-subtarefa (2). */
@@ -77,7 +77,12 @@ export function TarefaLinha({ item, nivel, h }: { item: Tarefa; nivel: number; h
           {item.titulo}
         </button>
 
-        {item.descricao && <AlignLeft className="w-3 h-3 text-text-muted shrink-0" aria-label="Tem descrição" />}
+        {(item.descricao || item.modelo?.instrucoes) && (
+          <AlignLeft
+            className="w-3 h-3 text-text-muted shrink-0"
+            aria-label={item.modelo?.instrucoes ? 'Tem instruções' : 'Tem observação'}
+          />
+        )}
 
         {ehPai && (
           <span className={`shrink-0 text-xs font-mono ${concluido ? 'text-green-600' : 'text-text-secondary'}`}>
@@ -100,7 +105,7 @@ export function TarefaLinha({ item, nivel, h }: { item: Tarefa; nivel: number; h
             className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium ${
               vencido ? 'bg-red-100 text-red-700' : concluido ? 'text-text-muted' : 'bg-surface-sunken text-text-secondary'
             }`}
-            title={vencido ? 'Prazo vencido' : 'Prazo'}
+            title={`${vencido ? 'Venceu' : 'Prazo'}: ${formatPrazoCompleto(item.prazo)}`}
           >
             <CalendarDays className="w-3 h-3" /> {formatPrazo(item.prazo)}
           </span>

@@ -3,7 +3,7 @@
 Sistema de gestão tipo Jira/ClickUp para credenciamento de empresas. Login próprio, tempo real, drag-and-drop, tarefas aninhadas, SLA e seções globais.
 
 ## O que é
-Board Kanban com 5 colunas onde cards de empresas transitam entre etapas do processo de credenciamento. Vários usuários acessam simultâneamente com atualização em tempo real. Navegação por sidebar rail (`AppNav.tsx`): Board, Atrasos, Documentações, Acessos, Checklist padrão.
+Board Kanban com 5 colunas onde cards de empresas transitam entre etapas do processo de credenciamento. Vários usuários acessam simultâneamente com atualização em tempo real. Navegação por sidebar rail (`AppNav.tsx`): Board, Atrasos, Documentações, Acessos, Tarefas.
 
 ## Autenticação
 Login próprio (tabela `usuarios`), **não** Supabase Auth — o Auth do projeto está com
@@ -16,7 +16,7 @@ Isso protege o acesso à interface. Não é uma barreira de dados: a anon key co
 com acesso direto às demais tabelas, como já era antes do login existir.
 
 ## Tarefas (ex-checklist)
-Cada empresa nasce com as etapas do `checklist_modelo` (editável em `/checklist`) via trigger
+Cada empresa nasce com as etapas do `checklist_modelo` (editável em `/tarefas`) via trigger
 em `empresas`. As tarefas são **da empresa**, não da plataforma. Desde a migração 005 a tabela
 `checklist_itens` é uma árvore (`parent_id` auto-referente): empresa → etapa → subtarefa →
 sub-subtarefa (máx. 3 níveis, imposto na UI em `TarefaLinha.tsx`). Pai não tem estado próprio:
@@ -24,20 +24,32 @@ seu concluído é o E-lógico das folhas e seu status vem delas (`statusEfetivo`
 cascateia. Badges e progresso contam **só folhas**. O vínculo item↔modelo é por `modelo_id`
 (FK), não mais por título.
 
-Campos da tarefa (migração 006): `descricao`, `prioridade` (baixa/media/alta/urgente),
-`status` (a_fazer/fazendo/bloqueado/concluido), `prazo`, `responsavel`, `sla_dias`.
-Editados no `TarefaModal.tsx`, aberto ao clicar no título da tarefa.
+Campos da tarefa: `descricao` (observação DESTA empresa), `prioridade`
+(baixa/media/alta/urgente), `status` (a_fazer/fazendo/bloqueado/concluido), `prazo`
+(timestamptz), `responsavel`, `sla_horas`. Editados no `TarefaModal.tsx`, aberto ao clicar
+no título da tarefa.
+
+**Instruções são do TIPO, não da instância** (migração 007): ficam em
+`checklist_modelo.instrucoes` e chegam na ficha por join (`modelo:checklist_modelo(instrucoes)`),
+nunca copiadas. Escrever uma vez em `/tarefas` vale para todas as empresas, inclusive as que já
+existem — copiar o texto para cada empresa era o que obrigava a editar empresa por empresa.
+`Checklist.tsx` tem fallback sem join para o código novo não zerar a lista quando o banco ainda
+não recebeu a migração (aqui migração é manual, então essa janela sempre existe).
 
 **`status` e `concluido` são sincronizados por trigger no banco** (`sync_status_concluido`):
 `concluido` continua existindo porque board, badges e /atrasos leem dele, e a cascata do pai
 faz update em massa só nele. Quem muda status explicitamente vence; senão o checkbox ajusta
 o status. Não escrever os dois em desacordo pelo client.
 
-## SLA por tipo de tarefa
-No cadastro do modelo (`/checklist`) cada tipo tem `sla_dias`, `prioridade` e `descricao`
-padrão. Tarefa nova nasce com `prazo = data de criação + sla_dias` (trigger
-`trg_criar_checklist_padrao`). "Aplicar às empresas que já existem" preenche prazo **só onde
-está vazio** e ignora tarefa concluída — prazo definido à mão nunca é sobrescrito.
+## SLA por tipo de tarefa — em HORAS
+A tela `/tarefas` (era `/checklist`; a rota antiga redireciona) é o cadastro dos tipos: nome,
+**instruções**, `sla_horas` e `prioridade` padrão. Tarefa nova nasce com
+`prazo = now() + sla_horas` (trigger `trg_criar_checklist_padrao`). "Aplicar às empresas que
+já existem" preenche prazo **só onde está vazio** e ignora tarefa concluída — prazo definido
+à mão nunca é sobrescrito; instruções não dependem disso (são lidas do tipo).
+
+SLA é em horas em todo o sistema, inclusive `sla_colunas.max_horas`. `formatHoras()` em
+`src/lib/tarefas.ts` mostra horas até 48h e dias acima disso.
 
 ## SLA
 - **Prazo por tarefa**: vencida = chip vermelho na ficha, badge vermelho no card, linha em `/atrasos`.
@@ -56,6 +68,9 @@ está vazio** e ignora tarefa concluída — prazo definido à mão nunca é sob
 `supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes. A 005 (tarefas aninhadas,
 SLA de coluna, documentos, acessos) e a 006 (campos da tarefa + SLA por tipo no modelo) foram
 aplicadas em 18/08/2026 — cada uma rodada 2x para provar idempotência.
+⚠️ A **007** (SLA em horas + instruções no tipo) está escrita mas **ainda não foi rodada**:
+rodar `supabase/007_sla_horas_instrucoes_do_tipo.sql` no SQL Editor. Até lá, salvar instruções
+e SLA em `/tarefas` falha (colunas não existem); o resto do sistema segue funcionando.
 Não existe 001 baseline: as tabelas base (empresas, plataformas, empresa_plataforma,
 comentarios, anexos, credenciais) foram criadas à mão e não estão versionadas.
 

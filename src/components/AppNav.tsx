@@ -11,7 +11,7 @@ const ITENS = [
   { href: '/atrasos', titulo: 'Atrasos', Icone: AlarmClock },
   { href: '/documentacoes', titulo: 'Documentações', Icone: BookOpen },
   { href: '/acessos', titulo: 'Acessos', Icone: KeyRound },
-  { href: '/checklist', titulo: 'Checklist padrão', Icone: ListChecks },
+  { href: '/tarefas', titulo: 'Tarefas', Icone: ListChecks },
 ]
 
 /** Rail vertical de navegação — só aparece logado. */
