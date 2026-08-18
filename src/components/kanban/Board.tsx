@@ -152,7 +152,7 @@ export function Board() {
   const fetchChecklists = useCallback(async () => {
     const { data } = await supabase
       .from('checklist_itens')
-      .select('id, empresa_id, titulo, concluido, parent_id, prazo, responsavel')
+      .select('id, empresa_id, titulo, concluido, parent_id, prazo, responsavel, prioridade, status')
       .order('ordem')
     const itens = (data || []) as any[]
     const porId = new Map(itens.map(i => [i.id, i]))
@@ -176,6 +176,8 @@ export function Board() {
         responsavel: c.responsavel ?? null,
         prazo: c.prazo ?? null,
         atrasada: prazoVencido(c.prazo, c.concluido),
+        prioridade: c.prioridade ?? 'media',
+        status: c.status ?? 'a_fazer',
       })
       map.set(c.empresa_id, atual)
     }

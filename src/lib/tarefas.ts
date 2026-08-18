@@ -1,4 +1,4 @@
-import { Tarefa } from '@/types/kanban'
+import { Tarefa, StatusTarefa } from '@/types/kanban'
 
 /** Data local de hoje em ISO (yyyy-mm-dd), sem passar por UTC. */
 export function hojeISO() {
@@ -47,4 +47,29 @@ export function idsComDescendentes(item: Tarefa, filhos: Map<string, Tarefa[]>):
 /** Estado efetivo: folha usa o próprio concluido; pai é o E lógico das folhas. */
 export function estadoEfetivo(item: Tarefa, filhos: Map<string, Tarefa[]>) {
   return folhasDe(item, filhos).every(f => f.concluido)
+}
+
+/**
+ * Status do pai vem das folhas — bloqueio pesa mais que andamento, e andamento
+ * mais que "a fazer". Folha usa o status dela mesma.
+ */
+export function statusEfetivo(item: Tarefa, filhos: Map<string, Tarefa[]>): StatusTarefa {
+  const folhas = folhasDe(item, filhos)
+  if (folhas.length === 1 && folhas[0].id === item.id) return item.status
+  if (folhas.every(f => f.concluido)) return 'concluido'
+  if (folhas.some(f => f.status === 'bloqueado')) return 'bloqueado'
+  if (folhas.some(f => f.status === 'fazendo' || f.concluido)) return 'fazendo'
+  return 'a_fazer'
+}
+
+/** Trilha de títulos até o pai da tarefa (sem incluir ela própria). */
+export function caminhoAte(item: Tarefa, todas: Tarefa[]): string[] {
+  const porId = new Map(todas.map(t => [t.id, t]))
+  const trilha: string[] = []
+  let atual = item.parent_id ? porId.get(item.parent_id) : undefined
+  while (atual) {
+    trilha.unshift(atual.titulo)
+    atual = atual.parent_id ? porId.get(atual.parent_id) : undefined
+  }
+  return trilha
 }

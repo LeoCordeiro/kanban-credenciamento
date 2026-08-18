@@ -152,6 +152,13 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
                       {checklist.pendentes.map((p, i) => (
                         <li key={i} className={`leading-snug ${p.atrasada ? 'text-red-700' : ''}`}>
                           • {p.etapa && p.etapa !== p.titulo ? `${p.etapa} → ` : ''}{p.titulo}
+                          {(p.prioridade === 'urgente' || p.prioridade === 'alta') && (
+                            <span className={p.prioridade === 'urgente' ? 'text-red-600 font-semibold' : 'text-amber-700 font-semibold'}>
+                              {' '}({p.prioridade})
+                            </span>
+                          )}
+                          {p.status === 'bloqueado' && <span className="text-red-600 font-semibold"> (bloqueado)</span>}
+                          {p.status === 'fazendo' && <span className="text-blue-600"> (fazendo)</span>}
                           {p.responsavel && <span className="text-text-muted capitalize"> · {p.responsavel}</span>}
                         </li>
                       ))}

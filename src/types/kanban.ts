@@ -65,6 +65,23 @@ export interface Plataforma {
   created_at: string
 }
 
+export type Prioridade = 'baixa' | 'media' | 'alta' | 'urgente'
+export type StatusTarefa = 'a_fazer' | 'fazendo' | 'bloqueado' | 'concluido'
+
+export const PRIORIDADES: { id: Prioridade; nome: string; cor: string; chip: string }[] = [
+  { id: 'baixa', nome: 'Baixa', cor: '#6b7280', chip: 'bg-gray-100 text-gray-600' },
+  { id: 'media', nome: 'Média', cor: '#2563eb', chip: 'bg-blue-100 text-blue-700' },
+  { id: 'alta', nome: 'Alta', cor: '#d97706', chip: 'bg-amber-100 text-amber-800' },
+  { id: 'urgente', nome: 'Urgente', cor: '#dc2626', chip: 'bg-red-100 text-red-700' },
+]
+
+export const STATUS_TAREFA: { id: StatusTarefa; nome: string; cor: string; chip: string }[] = [
+  { id: 'a_fazer', nome: 'A fazer', cor: '#97a0af', chip: 'bg-gray-100 text-gray-600' },
+  { id: 'fazendo', nome: 'Fazendo', cor: '#0079bf', chip: 'bg-blue-100 text-blue-700' },
+  { id: 'bloqueado', nome: 'Bloqueado', cor: '#dc2626', chip: 'bg-red-100 text-red-700' },
+  { id: 'concluido', nome: 'Concluído', cor: '#16a34a', chip: 'bg-green-100 text-green-700' },
+]
+
 export interface ChecklistItem {
   id: string
   empresa_id: string
@@ -77,6 +94,10 @@ export interface ChecklistItem {
   prazo: string | null
   responsavel: string | null
   modelo_id: string | null
+  descricao: string | null
+  prioridade: Prioridade
+  status: StatusTarefa
+  sla_dias: number | null
   created_at: string
 }
 
@@ -87,6 +108,10 @@ export interface ChecklistModeloItem {
   id: string
   titulo: string
   ordem: number
+  /** SLA do tipo de tarefa: prazo da tarefa nova = data de criação + N dias. */
+  sla_dias: number | null
+  descricao: string | null
+  prioridade: Prioridade
   created_at: string
 }
 
@@ -115,6 +140,8 @@ export interface PendenteResumo {
   responsavel: string | null
   prazo: string | null
   atrasada: boolean
+  prioridade: Prioridade
+  status: StatusTarefa
 }
 
 export interface ChecklistResumo {

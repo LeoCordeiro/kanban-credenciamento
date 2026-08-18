@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { SlaColuna, ColunaId, COLUNAS } from '@/types/kanban'
+import { SlaColuna, ColunaId, COLUNAS, Prioridade, StatusTarefa, PRIORIDADES, STATUS_TAREFA } from '@/types/kanban'
 import { hojeISO, formatPrazo } from '@/lib/tarefas'
 import { Painel, CabecalhoSecao } from '@/components/ui/Painel'
 import { AlarmClock, Timer, CalendarDays, ExternalLink } from 'lucide-react'
@@ -15,6 +15,8 @@ interface TarefaVencida {
   titulo: string
   prazo: string
   responsavel: string | null
+  prioridade: Prioridade
+  status: StatusTarefa
   empresas: { id: string; razao_social: string } | null
 }
 
@@ -46,7 +48,7 @@ export default function AtrasosPage() {
       const [{ data: vencidas }, { data: eps }, { data: slas }] = await Promise.all([
         supabase
           .from('checklist_itens')
-          .select('id, titulo, prazo, responsavel, empresas(id, razao_social)')
+          .select('id, titulo, prazo, responsavel, prioridade, status, empresas(id, razao_social)')
           .eq('concluido', false)
           .not('prazo', 'is', null)
           .lt('prazo', hojeISO())
@@ -123,6 +125,16 @@ export default function AtrasosPage() {
                     <CalendarDays className="w-3 h-3" /> {formatPrazo(t.prazo)}
                   </span>
                   <span className="text-sm text-text-primary truncate">{t.titulo}</span>
+                  {(t.prioridade === 'urgente' || t.prioridade === 'alta') && (
+                    <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${PRIORIDADES.find(p => p.id === t.prioridade)?.chip}`}>
+                      {PRIORIDADES.find(p => p.id === t.prioridade)?.nome}
+                    </span>
+                  )}
+                  {t.status === 'bloqueado' && (
+                    <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_TAREFA.find(s => s.id === 'bloqueado')?.chip}`}>
+                      Bloqueado
+                    </span>
+                  )}
                   <span className="text-xs text-text-secondary truncate">{t.empresas?.razao_social}</span>
                   <span className="ml-auto flex items-center gap-2 shrink-0">
                     {t.responsavel && (

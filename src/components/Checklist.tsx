@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { Tarefa, Usuario } from '@/types/kanban'
-import { montarArvore, folhasDe, estadoEfetivo, idsComDescendentes } from '@/lib/tarefas'
+import { montarArvore, folhasDe, estadoEfetivo, idsComDescendentes, caminhoAte } from '@/lib/tarefas'
 import { TarefaLinha, TarefaHandlers } from '@/components/TarefaLinha'
+import { TarefaModal, PatchTarefa } from '@/components/TarefaModal'
 import { Plus, ListChecks } from 'lucide-react'
 
 export function Checklist({ empresaId }: { empresaId: string }) {
@@ -13,6 +14,7 @@ export function Checklist({ empresaId }: { empresaId: string }) {
   const [itens, setItens] = useState<Tarefa[]>([])
   const [usuarios, setUsuarios] = useState<string[]>([])
   const [novo, setNovo] = useState('')
+  const [abertaId, setAbertaId] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     const { data } = await supabase
@@ -56,7 +58,11 @@ export function Checklist({ empresaId }: { empresaId: string }) {
         })
       : [item.id]
     if (ids.length === 0) return
-    setItens(prev => prev.map(i => ids.includes(i.id) ? { ...i, ...patch } : i))
+    // O status quem alinha é a trigger no banco; aqui espelhamos a mesma regra
+    // para a linha não piscar com o chip velho até o realtime chegar.
+    setItens(prev => prev.map(i => ids.includes(i.id)
+      ? { ...i, ...patch, status: concluido ? 'concluido' : (i.status === 'concluido' ? 'a_fazer' : i.status) }
+      : i))
     await supabase.from('checklist_itens').update(patch).in('id', ids)
   }
 
@@ -70,14 +76,19 @@ export function Checklist({ empresaId }: { empresaId: string }) {
     carregar()
   }
 
-  async function salvarMeta(item: Tarefa, prazo: string | null, responsavel: string | null) {
-    setItens(prev => prev.map(i => i.id === item.id ? { ...i, prazo, responsavel } : i))
-    await supabase.from('checklist_itens').update({ prazo, responsavel }).eq('id', item.id)
-  }
-
-  async function renomear(item: Tarefa, titulo: string) {
-    setItens(prev => prev.map(i => i.id === item.id ? { ...i, titulo } : i))
-    await supabase.from('checklist_itens').update({ titulo }).eq('id', item.id)
+  async function salvarTarefa(item: Tarefa, patch: PatchTarefa) {
+    // Status vindo do modal também mexe na autoria da conclusão; o banco cuida
+    // de manter `concluido` alinhado (trigger sync_status_concluido).
+    const completo: Record<string, unknown> = { ...patch }
+    if (patch.status && patch.status !== item.status) {
+      const virouFeito = patch.status === 'concluido'
+      completo.concluido_em = virouFeito ? new Date().toISOString() : null
+      completo.concluido_por = virouFeito ? usuario?.nome ?? null : null
+    }
+    setItens(prev => prev.map(i => i.id === item.id
+      ? { ...i, ...patch, concluido: patch.status ? patch.status === 'concluido' : i.concluido } as Tarefa
+      : i))
+    await supabase.from('checklist_itens').update(completo).eq('id', item.id)
   }
 
   async function remover(item: Tarefa) {
@@ -111,7 +122,9 @@ export function Checklist({ empresaId }: { empresaId: string }) {
       concluido_em: marcar ? new Date().toISOString() : null,
       concluido_por: marcar ? usuario?.nome ?? null : null,
     }
-    setItens(prev => prev.map(i => alvos.includes(i.id) ? { ...i, ...patch } : i))
+    setItens(prev => prev.map(i => alvos.includes(i.id)
+      ? { ...i, ...patch, status: marcar ? 'concluido' : (i.status === 'concluido' ? 'a_fazer' : i.status) }
+      : i))
     await supabase.from('checklist_itens').update(patch).in('id', alvos)
   }
 
@@ -124,13 +137,12 @@ export function Checklist({ empresaId }: { empresaId: string }) {
 
   const handlers: TarefaHandlers = {
     filhos,
-    usuarios,
     onAlternar: alternar,
     onAddSub: addSub,
-    onSalvarMeta: salvarMeta,
-    onRenomear: renomear,
-    onRemover: remover,
+    onAbrir: t => setAbertaId(t.id),
   }
+
+  const aberta = abertaId ? itens.find(i => i.id === abertaId) : undefined
 
   return (
     <section className="bg-white border border-border rounded-xl shadow-sm overflow-hidden shrink-0">
@@ -185,6 +197,18 @@ export function Checklist({ empresaId }: { empresaId: string }) {
           <Plus className="w-4 h-4" />
         </button>
       </form>
+
+      {aberta && (
+        <TarefaModal
+          tarefa={aberta}
+          caminho={caminhoAte(aberta, itens)}
+          ehPai={(filhos.get(aberta.id) ?? []).length > 0}
+          usuarios={usuarios}
+          onSalvar={patch => salvarTarefa(aberta, patch)}
+          onRemover={() => remover(aberta)}
+          onClose={() => setAbertaId(null)}
+        />
+      )}
     </section>
   )
 }

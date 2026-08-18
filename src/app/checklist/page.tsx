@@ -6,70 +6,121 @@ import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useS
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '@/lib/supabase'
-import { ChecklistModeloItem } from '@/types/kanban'
-import { ArrowLeft, GripVertical, Trash2, Plus, ListChecks, Loader2, Check, Pencil, X } from 'lucide-react'
+import { ChecklistModeloItem, Prioridade, PRIORIDADES } from '@/types/kanban'
+import { ArrowLeft, GripVertical, Trash2, Plus, ListChecks, Loader2, Check, Pencil, X, Timer, ChevronDown, ChevronUp } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
-function Linha({ item, onRenomear, onRemover }: { item: ChecklistModeloItem; onRenomear: (id: string, titulo: string) => void; onRemover: (id: string) => void }) {
+type PatchModelo = Partial<Pick<ChecklistModeloItem, 'titulo' | 'sla_dias' | 'descricao' | 'prioridade'>>
+
+function Linha({ item, onAtualizar, onRemover }: { item: ChecklistModeloItem; onAtualizar: (id: string, patch: PatchModelo) => void; onRemover: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const [editando, setEditando] = useState(false)
   const [texto, setTexto] = useState(item.titulo)
+  const [aberto, setAberto] = useState(false)
+  const [descricao, setDescricao] = useState(item.descricao ?? '')
 
   function salvar() {
     const t = texto.trim()
-    if (t && t !== item.titulo) onRenomear(item.id, t)
+    if (t && t !== item.titulo) onAtualizar(item.id, { titulo: t })
     else setTexto(item.titulo)
     setEditando(false)
   }
+
+  const prio = PRIORIDADES.find(p => p.id === item.prioridade)
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`group flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-card-hover transition-colors ${isDragging ? 'opacity-50' : ''}`}
+      className={`group bg-white hover:bg-card-hover transition-colors ${isDragging ? 'opacity-50' : ''}`}
     >
-      <button
-        {...listeners}
-        {...attributes}
-        className="text-text-muted hover:text-text-secondary cursor-grab active:cursor-grabbing shrink-0 touch-none"
-        title="Arrastar para reordenar"
-      >
-        <GripVertical className="w-4 h-4" />
-      </button>
-
-      {editando ? (
-        <input
-          autoFocus
-          value={texto}
-          onChange={e => setTexto(e.target.value)}
-          onBlur={salvar}
-          onKeyDown={e => {
-            if (e.key === 'Enter') salvar()
-            if (e.key === 'Escape') { setTexto(item.titulo); setEditando(false) }
-          }}
-          className="flex-1 min-w-0 px-2 py-1 bg-[#f4f5f7] border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-btn-primary"
-        />
-      ) : (
-        <span className="flex-1 min-w-0 truncate text-sm text-text-primary">{item.titulo}</span>
-      )}
-
-      {!editando && (
+      <div className="flex items-center gap-2 px-4 py-2.5">
         <button
-          onClick={() => setEditando(true)}
-          className="opacity-0 group-hover:opacity-100 p-1 text-text-muted hover:text-text-primary transition-all shrink-0"
-          title="Renomear"
+          {...listeners}
+          {...attributes}
+          className="text-text-muted hover:text-text-secondary cursor-grab active:cursor-grabbing shrink-0 touch-none"
+          title="Arrastar para reordenar"
         >
-          <Pencil className="w-3.5 h-3.5" />
+          <GripVertical className="w-4 h-4" />
         </button>
+
+        {editando ? (
+          <input
+            autoFocus
+            value={texto}
+            onChange={e => setTexto(e.target.value)}
+            onBlur={salvar}
+            onKeyDown={e => {
+              if (e.key === 'Enter') salvar()
+              if (e.key === 'Escape') { setTexto(item.titulo); setEditando(false) }
+            }}
+            className="flex-1 min-w-0 px-2 py-1 bg-surface-sunken border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-btn-primary"
+          />
+        ) : (
+          <span className="flex-1 min-w-0 truncate text-sm text-text-primary">{item.titulo}</span>
+        )}
+
+        {/* SLA do tipo: quantos dias a tarefa tem depois de nascer. */}
+        <label className="shrink-0 inline-flex items-center gap-1 text-xs text-text-secondary" title="SLA: prazo da tarefa = data de criação + N dias">
+          <Timer className="w-3.5 h-3.5 text-text-muted" />
+          <input
+            type="number"
+            min={1}
+            value={item.sla_dias ?? ''}
+            onChange={e => onAtualizar(item.id, { sla_dias: e.target.value ? parseInt(e.target.value, 10) : null })}
+            placeholder="—"
+            className="w-14 px-1.5 py-1 bg-surface-sunken border border-border rounded text-xs font-mono text-text-primary text-center placeholder:text-text-muted focus:outline-none focus:border-btn-primary"
+          />
+          <span className="text-text-muted">dias</span>
+        </label>
+
+        <select
+          value={item.prioridade}
+          onChange={e => onAtualizar(item.id, { prioridade: e.target.value as Prioridade })}
+          title="Prioridade padrão da tarefa"
+          className={`shrink-0 px-1.5 py-1 rounded text-[11px] font-semibold border-0 focus:outline-none focus:ring-2 focus:ring-btn-primary/30 ${prio?.chip ?? ''}`}
+        >
+          {PRIORIDADES.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+        </select>
+
+        <button
+          onClick={() => setAberto(v => !v)}
+          title={aberto ? 'Fechar descrição' : 'Descrição padrão'}
+          className={`p-1 transition-all shrink-0 ${item.descricao ? 'text-btn-primary' : 'text-text-muted opacity-0 group-hover:opacity-100 hover:text-text-primary'}`}
+        >
+          {aberto ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        {!editando && (
+          <button
+            onClick={() => setEditando(true)}
+            className="opacity-0 group-hover:opacity-100 p-1 text-text-muted hover:text-text-primary transition-all shrink-0"
+            title="Renomear"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <button
+          onClick={() => onRemover(item.id)}
+          className="opacity-0 group-hover:opacity-100 p-1 text-text-muted hover:text-red-500 transition-all shrink-0"
+          title="Remover do modelo"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {aberto && (
+        <div className="px-4 pb-3 pl-10">
+          <textarea
+            value={descricao}
+            onChange={e => setDescricao(e.target.value)}
+            onBlur={() => { if (descricao !== (item.descricao ?? '')) onAtualizar(item.id, { descricao: descricao.trim() || null }) }}
+            rows={3}
+            placeholder="Descrição padrão — nasce junto com a tarefa em toda empresa nova."
+            className="w-full px-2 py-1.5 bg-surface-sunken border border-border rounded-lg text-xs leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none focus:border-btn-primary resize-y"
+          />
+        </div>
       )}
-      <button
-        onClick={() => onRemover(item.id)}
-        className="opacity-0 group-hover:opacity-100 p-1 text-text-muted hover:text-red-500 transition-all shrink-0"
-        title="Remover do modelo"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
     </div>
   )
 }
@@ -119,9 +170,9 @@ export default function ChecklistModeloPage() {
     carregar()
   }
 
-  async function renomear(id: string, titulo: string) {
-    setItens(prev => prev.map(i => i.id === id ? { ...i, titulo } : i))
-    const { error } = await supabase.from('checklist_modelo').update({ titulo }).eq('id', id)
+  async function atualizar(id: string, patch: PatchModelo) {
+    setItens(prev => prev.map(i => i.id === id ? { ...i, ...patch } : i))
+    const { error } = await supabase.from('checklist_modelo').update(patch).eq('id', id)
     if (error) { setErro(error.message); carregar() }
   }
 
@@ -175,7 +226,8 @@ export default function ChecklistModeloPage() {
             <ListChecks className="w-6 h-6" /> Checklist padrão
           </h1>
           <p className="text-sm text-white/70 mt-1">
-            Toda empresa nova nasce com estes itens. Arraste para reordenar.
+            Toda empresa nova nasce com estes itens. Arraste para reordenar. O <strong className="font-semibold">SLA</strong> de
+            cada tipo vira o prazo da tarefa (data de criação + dias), junto com a prioridade e a descrição padrão.
           </p>
         </div>
 
@@ -194,7 +246,7 @@ export default function ChecklistModeloPage() {
               <SortableContext items={itens.map(i => i.id)} strategy={verticalListSortingStrategy}>
                 <div className="divide-y divide-border">
                   {itens.map(item => (
-                    <Linha key={item.id} item={item} onRenomear={renomear} onRemover={remover} />
+                    <Linha key={item.id} item={item} onAtualizar={atualizar} onRemover={remover} />
                   ))}
                 </div>
               </SortableContext>
@@ -231,9 +283,11 @@ export default function ChecklistModeloPage() {
         <section className="mt-4 bg-card-bg border border-border rounded-xl shadow-sm p-4">
           <h2 className="text-base font-semibold text-text-primary">Aplicar às empresas que já existem</h2>
           <p className="text-sm text-text-secondary mt-1 mb-3">
-            Adiciona nas empresas os itens do modelo que estiverem faltando e alinha a ordem.
-            Nada é apagado: item já marcado como feito continua como está, e item que você tirou
-            do modelo permanece nas empresas até ser removido na ficha de cada uma.
+            Adiciona nas empresas os itens do modelo que estiverem faltando, alinha a ordem e
+            preenche o prazo de quem ainda não tem, usando o SLA do tipo.
+            Nada é apagado nem sobrescrito: item já marcado como feito continua como está, prazo
+            definido à mão é respeitado, e item que você tirou do modelo permanece nas empresas
+            até ser removido na ficha de cada uma.
           </p>
 
           <div className="flex items-center gap-3 flex-wrap">

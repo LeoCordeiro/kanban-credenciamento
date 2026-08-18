@@ -19,10 +19,25 @@ com acesso direto às demais tabelas, como já era antes do login existir.
 Cada empresa nasce com as etapas do `checklist_modelo` (editável em `/checklist`) via trigger
 em `empresas`. As tarefas são **da empresa**, não da plataforma. Desde a migração 005 a tabela
 `checklist_itens` é uma árvore (`parent_id` auto-referente): empresa → etapa → subtarefa →
-sub-subtarefa (máx. 3 níveis, imposto na UI em `TarefaLinha.tsx`). Cada tarefa tem `prazo date`
-e `responsavel text` (dropdown de `listar_usuarios`). Pai não tem estado próprio: seu concluído
-é o E-lógico das folhas; marcar pai cascateia. Badges e progresso contam **só folhas**.
-O vínculo item↔modelo é por `modelo_id` (FK), não mais por título.
+sub-subtarefa (máx. 3 níveis, imposto na UI em `TarefaLinha.tsx`). Pai não tem estado próprio:
+seu concluído é o E-lógico das folhas e seu status vem delas (`statusEfetivo`); marcar pai
+cascateia. Badges e progresso contam **só folhas**. O vínculo item↔modelo é por `modelo_id`
+(FK), não mais por título.
+
+Campos da tarefa (migração 006): `descricao`, `prioridade` (baixa/media/alta/urgente),
+`status` (a_fazer/fazendo/bloqueado/concluido), `prazo`, `responsavel`, `sla_dias`.
+Editados no `TarefaModal.tsx`, aberto ao clicar no título da tarefa.
+
+**`status` e `concluido` são sincronizados por trigger no banco** (`sync_status_concluido`):
+`concluido` continua existindo porque board, badges e /atrasos leem dele, e a cascata do pai
+faz update em massa só nele. Quem muda status explicitamente vence; senão o checkbox ajusta
+o status. Não escrever os dois em desacordo pelo client.
+
+## SLA por tipo de tarefa
+No cadastro do modelo (`/checklist`) cada tipo tem `sla_dias`, `prioridade` e `descricao`
+padrão. Tarefa nova nasce com `prazo = data de criação + sla_dias` (trigger
+`trg_criar_checklist_padrao`). "Aplicar às empresas que já existem" preenche prazo **só onde
+está vazio** e ignora tarefa concluída — prazo definido à mão nunca é sobrescrito.
 
 ## SLA
 - **Prazo por tarefa**: vencida = chip vermelho na ficha, badge vermelho no card, linha em `/atrasos`.
@@ -39,7 +54,8 @@ O vínculo item↔modelo é por `modelo_id` (FK), não mais por título.
 
 ## Migrações
 `supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes. A 005 (tarefas aninhadas,
-SLA, documentos, acessos) foi aplicada em 18/08/2026 — rodada 2x para provar idempotência.
+SLA de coluna, documentos, acessos) e a 006 (campos da tarefa + SLA por tipo no modelo) foram
+aplicadas em 18/08/2026 — cada uma rodada 2x para provar idempotência.
 Não existe 001 baseline: as tabelas base (empresas, plataformas, empresa_plataforma,
 comentarios, anexos, credenciais) foram criadas à mão e não estão versionadas.
 
