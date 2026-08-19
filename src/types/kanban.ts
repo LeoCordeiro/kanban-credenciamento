@@ -122,9 +122,12 @@ export interface ChecklistModeloItem {
   instrucoes: string | null
   prioridade: Prioridade
   created_at: string
+  /** Tipo de subtarefa: aponta para o tipo de tarefa que a contém. */
+  parent_id: string | null
   /** Documentações de consulta (join). Aparecem dentro da tarefa na ficha. */
   docs?: { documento: Documento | null }[] | null
-  /** Plataformas às quais a tarefa é restrita (join). Vazio = todas. */
+  /** Plataformas às quais a tarefa é restrita (join). Vazio = todas.
+   *  Só faz sentido na raiz — subtarefa acompanha o escopo da tarefa dela. */
   plataformas?: { plataforma_id: string }[] | null
 }
 

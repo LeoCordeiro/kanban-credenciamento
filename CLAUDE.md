@@ -43,7 +43,12 @@ o status. Não escrever os dois em desacordo pelo client.
 
 ## SLA por tipo de tarefa — em HORAS
 A tela `/tarefas` (era `/checklist`; a rota antiga redireciona) é o cadastro dos tipos: nome,
-**instruções**, `sla_horas` e `prioridade` padrão. Tarefa nova nasce com
+**instruções**, `sla_horas` e `prioridade` padrão. Desde a migração 010 o modelo também é
+árvore (`checklist_modelo.parent_id`): tarefa e **subtarefa**, com os mesmos campos e SLA
+próprio. `semear_tarefas_da_empresa()` insere a árvore e depois religa os filhos ao pai daquela
+empresa — o id do pai só existe depois do insert, então não dá numa passada só. Escopo de
+plataforma vale pela raiz: subtarefa acompanha a tarefa dela, senão existiria subtarefa órfã em
+quadro onde a mãe nem aparece. O título é único **por pai**, não global. Tarefa nova nasce com
 `prazo = now() + sla_horas` (trigger `trg_criar_checklist_padrao`). "Aplicar às empresas que
 já existem" preenche prazo **só onde está vazio** e ignora tarefa concluída — prazo definido
 à mão nunca é sobrescrito; instruções não dependem disso (são lidas do tipo).
@@ -98,10 +103,14 @@ prazo de hoje aparecia como atrasada.
 `supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes. A 005 (tarefas aninhadas,
 SLA de coluna, documentos, acessos) e a 006 (campos da tarefa + SLA por tipo no modelo) foram
 aplicadas em 18/08/2026 — cada uma rodada 2x para provar idempotência.
-⚠️ A **007** (SLA em horas + instruções no tipo), a **008** (documentação vinculada + escopo
-por plataforma) e a **009** (conclusão sobe para a tarefa-mãe) estão escritas mas **ainda não
-foram rodadas** — rodar nesta ordem no SQL Editor. Até lá, `/tarefas` e a ficha caem em consultas de fallback (a lista aparece, mas sem
-instruções/documentação, e salvar SLA falha). As telas já orientam isso na mensagem de erro.
+A **007** (SLA em horas + instruções no tipo), a **008** (documentação vinculada + escopo por
+plataforma), a **009** (conclusão sobe para a tarefa-mãe) e a **010** (subtarefa no modelo)
+foram aplicadas em 19/08/2026.
+
+**Como rodar migração pelo SQL Editor:** injetar com `monaco...setValue(sql)`, dar **F5** e só
+então clicar Run. Sem o F5 o botão executa o SQL do estado interno do React, não o texto
+injetado — e devolve o resultado da migração anterior, que parece sucesso
+([[feedback_supabase-sql-editor-run-executa-estado-do-react]]). Conferir sempre pelo banco.
 Não existe 001 baseline: as tabelas base (empresas, plataformas, empresa_plataforma,
 comentarios, anexos, credenciais) foram criadas à mão e não estão versionadas.
 

@@ -6,7 +6,7 @@ import { ChecklistModeloItem, Prioridade, PRIORIDADES, Documento, Plataforma } f
 import { formatHoras } from '@/lib/tarefas'
 import { Modal } from '@/components/ui/Modal'
 import { CAMPO_LABEL, INPUT } from '@/components/ui/Painel'
-import { Timer, Flag, Trash2, Info, BookOpen, LayoutGrid, Check, ExternalLink } from 'lucide-react'
+import { Timer, Flag, Trash2, Info, BookOpen, LayoutGrid, Check, ExternalLink, CornerDownRight } from 'lucide-react'
 
 export interface PatchTipo {
   titulo?: string
@@ -19,8 +19,10 @@ export interface PatchTipo {
  * Editor do TIPO de tarefa. O que se define aqui vale para todas as empresas —
  * instruções, documentação de consulta e em quais quadros a tarefa existe.
  */
-export function TipoTarefaModal({ tipo, documentos, plataformas, onSalvar, onRemover, onClose }: {
+export function TipoTarefaModal({ tipo, pai, documentos, plataformas, onSalvar, onRemover, onClose }: {
   tipo: ChecklistModeloItem
+  /** Preenchido quando este tipo é uma subtarefa. */
+  pai?: ChecklistModeloItem
   documentos: Documento[]
   plataformas: Plataforma[]
   onSalvar: (patch: PatchTipo) => Promise<void>
@@ -74,10 +76,13 @@ export function TipoTarefaModal({ tipo, documentos, plataformas, onSalvar, onRem
       await supabase.from('checklist_modelo_documento')
         .insert([...docsSel].map(documento_id => ({ modelo_id: tipo.id, documento_id })))
     }
-    await supabase.from('checklist_modelo_plataforma').delete().eq('modelo_id', tipo.id)
-    if (platsSel.size > 0) {
-      await supabase.from('checklist_modelo_plataforma')
-        .insert([...platsSel].map(plataforma_id => ({ modelo_id: tipo.id, plataforma_id })))
+    // Subtarefa não tem escopo próprio: herda o da tarefa-mãe.
+    if (!pai) {
+      await supabase.from('checklist_modelo_plataforma').delete().eq('modelo_id', tipo.id)
+      if (platsSel.size > 0) {
+        await supabase.from('checklist_modelo_plataforma')
+          .insert([...platsSel].map(plataforma_id => ({ modelo_id: tipo.id, plataforma_id })))
+      }
     }
 
     setSalvando(false)
@@ -85,10 +90,17 @@ export function TipoTarefaModal({ tipo, documentos, plataformas, onSalvar, onRem
   }
 
   return (
-    <Modal titulo="Tipo de tarefa" onClose={onClose} maxWidth="max-w-2xl">
+    <Modal titulo={pai ? 'Subtarefa' : 'Tipo de tarefa'} onClose={onClose} maxWidth="max-w-2xl">
       <form onSubmit={salvar} className="flex-1 overflow-y-auto p-5 space-y-4">
+        {pai && (
+          <p className="flex items-center gap-1.5 text-xs text-text-secondary -mt-1">
+            <CornerDownRight className="w-3.5 h-3.5 shrink-0" />
+            Subtarefa de <span className="font-semibold text-text-primary">{pai.titulo}</span>
+          </p>
+        )}
+
         <div>
-          <label className={CAMPO_LABEL}>Nome da tarefa *</label>
+          <label className={CAMPO_LABEL}>{pai ? 'Nome da subtarefa *' : 'Nome da tarefa *'}</label>
           <input
             required
             autoFocus
@@ -99,7 +111,7 @@ export function TipoTarefaModal({ tipo, documentos, plataformas, onSalvar, onRem
         </div>
 
         <div>
-          <label className={CAMPO_LABEL}>Instruções — o que fazer nesta tarefa</label>
+          <label className={CAMPO_LABEL}>Instruções — o que fazer nesta {pai ? 'subtarefa' : 'tarefa'}</label>
           <textarea
             value={form.instrucoes}
             onChange={e => setForm(p => ({ ...p, instrucoes: e.target.value }))}
@@ -109,7 +121,7 @@ export function TipoTarefaModal({ tipo, documentos, plataformas, onSalvar, onRem
           />
           <p className="mt-1 flex items-start gap-1.5 text-xs text-text-secondary">
             <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
-            Aparece em todas as empresas que têm esta tarefa. Escreve aqui uma vez e vale para todas —
+            Aparece em todas as empresas que têm esta {pai ? 'subtarefa' : 'tarefa'}. Escreve aqui uma vez e vale para todas —
             inclusive as que já existem.
           </p>
         </div>
@@ -151,7 +163,15 @@ export function TipoTarefaModal({ tipo, documentos, plataformas, onSalvar, onRem
           </p>
         </div>
 
-        {/* Restrição por quadro: a tarefa só existe para empresa naquelas plataformas. */}
+        {/* Restrição por quadro: a tarefa só existe para empresa naquelas plataformas.
+            Subtarefa não escolhe — ela acompanha a tarefa a que pertence, senão
+            existiriam subtarefas órfãs em quadros onde a mãe nem aparece. */}
+        {pai ? (
+          <p className="flex items-start gap-1.5 text-xs text-text-secondary rounded-lg border border-border bg-surface-sunken px-3 py-2">
+            <LayoutGrid className="w-3.5 h-3.5 shrink-0 mt-px" />
+            Esta subtarefa acompanha os quadros de <span className="font-semibold text-text-primary">{pai.titulo}</span>.
+          </p>
+        ) : (
         <div>
           <label className={CAMPO_LABEL}>
             <LayoutGrid className="inline w-3 h-3 mb-0.5" /> Onde esta tarefa vale
@@ -190,6 +210,7 @@ export function TipoTarefaModal({ tipo, documentos, plataformas, onSalvar, onRem
               : 'Toda empresa recebe esta tarefa, em qualquer quadro.'}
           </p>
         </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div>
