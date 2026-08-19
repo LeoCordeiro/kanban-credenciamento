@@ -39,21 +39,25 @@ export default function AtrasosPage() {
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: vencidas }, { data: eps }, { data: slas }] = await Promise.all([
+      const [{ data: vencidas }, { data: maes }, { data: eps }, { data: slas }] = await Promise.all([
         supabase
           .from('checklist_itens')
-          .select('id, titulo, prazo, responsavel, prioridade, status, empresas(id, razao_social)')
+          .select('id, titulo, prazo, responsavel, prioridade, status, parent_id, empresas(id, razao_social)')
           .eq('concluido', false)
           .not('prazo', 'is', null)
           .lt('prazo', new Date().toISOString())
           .order('prazo'),
+        // Ids de quem tem subtarefa: tarefa-mãe é agrupamento, quem atrasa são
+        // as folhas. Sem isso a mãe apareceria repetindo o atraso das filhas.
+        supabase.from('checklist_itens').select('parent_id').not('parent_id', 'is', null),
         supabase
           .from('empresa_plataforma')
           .select('id, coluna, coluna_desde, empresa_id, plataforma_id, empresas(id, razao_social), plataformas(id, nome, cor)'),
         supabase.from('sla_colunas').select('*'),
       ])
 
-      setTarefas((vencidas as any[]) ?? [])
+      const ehMae = new Set(((maes as { parent_id: string }[]) ?? []).map(m => m.parent_id))
+      setTarefas(((vencidas as any[]) ?? []).filter(t => !ehMae.has(t.id)))
 
       const regras = (slas ?? []) as SlaColuna[]
       const slaPara = (plataformaId: string, coluna: string) =>

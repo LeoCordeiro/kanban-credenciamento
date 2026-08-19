@@ -63,8 +63,26 @@ SLA é em horas em todo o sistema, inclusive `sla_colunas.max_horas`. `formatHor
   é também quando o SLA daquela tarefa começa a contar.
 - Sair da plataforma **não apaga** tarefa: progresso e autoria valem mais que limpeza.
 
+## Progresso da empresa
+Percentual e "tarefa da vez" saem do mesmo lugar: `fetchChecklists` no `Board.tsx` percorre a
+árvore em **profundidade** (tarefa → suas subtarefas → próxima tarefa). Essa ordem é o que faz
+`pendentes[0]` ser a tarefa que está na mão — ordenar plano por `ordem` misturaria subtarefa de
+uma etapa com a etapa seguinte. `pct` conta **só folhas**: tarefa com subtarefa vale pelo que as
+filhas somam, e fecha sozinha quando todas terminam.
+
+No card: barra + `%` + linha "Agora: Tarefa › Subtarefa +N" (vira "Atrasada:" em vermelho quando
+a tarefa da vez está vencida, e "Todas as tarefas concluídas" no fim). A ficha mostra o mesmo `%`.
+
+A migração **009** faz a conclusão subir para a tarefa-mãe **no banco** (antes era só derivado no
+client): quem lê a tabela direto — `/atrasos`, relatório, automação futura — passa a ver a mãe
+concluída quando as filhas estão. `/atrasos` também não lista tarefa-mãe: quem atrasa é a folha.
+
+**Prazo aceita os dois formatos** (`fimDoPrazo` em `src/lib/tarefas.ts`): data pura vale até
+23:59 daquele dia, timestamp vale na hora. Sem isso, enquanto a 007 não roda, toda tarefa com
+prazo de hoje aparecia como atrasada.
+
 ## SLA
-- **Prazo por tarefa**: vencida = chip vermelho na ficha, badge vermelho no card, linha em `/atrasos`.
+- **Prazo por tarefa**: vale em qualquer nível, inclusive subtarefa. Vencida = chip vermelho na ficha, badge vermelho no card, linha em `/atrasos`.
 - **Tempo por coluna**: `empresa_plataforma.coluna_desde` (renovado no drag) × `sla_colunas`
   (`plataforma_id` null = regra global; UI do modal Timer no board edita só a global).
   Estourou = borda âmbar + chip `⏱ Nd` no card + linha em `/atrasos`.
@@ -80,9 +98,9 @@ SLA é em horas em todo o sistema, inclusive `sla_colunas.max_horas`. `formatHor
 `supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes. A 005 (tarefas aninhadas,
 SLA de coluna, documentos, acessos) e a 006 (campos da tarefa + SLA por tipo no modelo) foram
 aplicadas em 18/08/2026 — cada uma rodada 2x para provar idempotência.
-⚠️ A **007** (SLA em horas + instruções no tipo) e a **008** (documentação vinculada + escopo
-por plataforma) estão escritas mas **ainda não foram rodadas** — rodar nesta ordem no SQL
-Editor. Até lá, `/tarefas` e a ficha caem em consultas de fallback (a lista aparece, mas sem
+⚠️ A **007** (SLA em horas + instruções no tipo), a **008** (documentação vinculada + escopo
+por plataforma) e a **009** (conclusão sobe para a tarefa-mãe) estão escritas mas **ainda não
+foram rodadas** — rodar nesta ordem no SQL Editor. Até lá, `/tarefas` e a ficha caem em consultas de fallback (a lista aparece, mas sem
 instruções/documentação, e salvar SLA falha). As telas já orientam isso na mensagem de erro.
 Não existe 001 baseline: as tabelas base (empresas, plataformas, empresa_plataforma,
 comentarios, anexos, credenciais) foram criadas à mão e não estão versionadas.

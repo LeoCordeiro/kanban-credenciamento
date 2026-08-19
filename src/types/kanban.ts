@@ -158,8 +158,12 @@ export interface PendenteResumo {
 }
 
 export interface ChecklistResumo {
+  /** Contam só as folhas: tarefa com subtarefa é medida pelas filhas. */
   feitos: number
   total: number
+  /** 0–100, arredondado. Fonte única do percentual mostrado no card. */
+  pct: number
+  /** Em ordem de árvore — pendentes[0] é a tarefa da vez. */
   pendentes: PendenteResumo[]
 }
 

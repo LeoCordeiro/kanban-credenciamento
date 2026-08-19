@@ -186,6 +186,9 @@ export function Checklist({ empresaId }: { empresaId: string }) {
           <span className={`text-sm font-mono font-semibold ${completo ? 'text-green-600' : 'text-text-secondary'}`}>
             {feitos}/{total}
           </span>
+          <span className={`text-sm font-bold tabular-nums ${completo ? 'text-green-600' : 'text-text-primary'}`}>
+            {pct}%
+          </span>
         </div>
       </div>
 

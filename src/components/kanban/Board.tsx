@@ -152,35 +152,63 @@ export function Board() {
   const fetchChecklists = useCallback(async () => {
     const { data } = await supabase
       .from('checklist_itens')
-      .select('id, empresa_id, titulo, concluido, parent_id, prazo, responsavel, prioridade, status')
+      .select('id, empresa_id, titulo, concluido, parent_id, ordem, created_at, prazo, responsavel, prioridade, status')
       .order('ordem')
     const itens = (data || []) as any[]
-    const porId = new Map(itens.map(i => [i.id, i]))
-    const temFilho = new Set(itens.filter(i => i.parent_id).map(i => i.parent_id))
 
-    const etapaRaiz = (item: any): string => {
-      let t = item
-      while (t.parent_id && porId.has(t.parent_id)) t = porId.get(t.parent_id)
-      return t.titulo
+    // Percorrer em profundidade dá a ordem de leitura real da ficha
+    // (tarefa, suas subtarefas, próxima tarefa) — é ela que define qual é a
+    // "tarefa da vez" mostrada no card. Ordenar plano por `ordem` misturaria
+    // subtarefa de uma etapa com a etapa seguinte.
+    const porEmpresa = new Map<string, any[]>()
+    for (const c of itens) {
+      const lista = porEmpresa.get(c.empresa_id) ?? []
+      lista.push(c)
+      porEmpresa.set(c.empresa_id, lista)
     }
 
     const map = new Map<string, ChecklistResumo>()
-    for (const c of itens) {
-      if (temFilho.has(c.id)) continue // pai não conta: seu estado é o das folhas
-      const atual = map.get(c.empresa_id) || { feitos: 0, total: 0, pendentes: [] as PendenteResumo[] }
-      atual.total++
-      if (c.concluido) atual.feitos++
-      else atual.pendentes.push({
-        titulo: c.titulo,
-        etapa: etapaRaiz(c),
-        responsavel: c.responsavel ?? null,
-        prazo: c.prazo ?? null,
-        atrasada: prazoVencido(c.prazo, c.concluido),
-        prioridade: c.prioridade ?? 'media',
-        status: c.status ?? 'a_fazer',
-      })
-      map.set(c.empresa_id, atual)
+
+    for (const [empresaId, lista] of porEmpresa) {
+      const filhos = new Map<string, any[]>()
+      for (const c of lista) {
+        const chave = c.parent_id ?? 'raiz'
+        const arr = filhos.get(chave) ?? []
+        arr.push(c)
+        filhos.set(chave, arr)
+      }
+      for (const arr of filhos.values()) {
+        arr.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0) || String(a.created_at).localeCompare(String(b.created_at)))
+      }
+
+      const resumo: ChecklistResumo = { feitos: 0, total: 0, pct: 0, pendentes: [] }
+
+      const visitar = (item: any, etapaRaiz: string) => {
+        const diretos = filhos.get(item.id) ?? []
+        if (diretos.length === 0) {
+          // Só folha conta: a tarefa-mãe é a soma das subtarefas dela.
+          resumo.total++
+          if (item.concluido) resumo.feitos++
+          else resumo.pendentes.push({
+            titulo: item.titulo,
+            etapa: etapaRaiz,
+            responsavel: item.responsavel ?? null,
+            prazo: item.prazo ?? null,
+            atrasada: prazoVencido(item.prazo, item.concluido),
+            prioridade: item.prioridade ?? 'media',
+            status: item.status ?? 'a_fazer',
+          })
+          return
+        }
+        for (const f of diretos) visitar(f, etapaRaiz)
+      }
+
+      for (const raiz of filhos.get('raiz') ?? []) visitar(raiz, raiz.titulo)
+
+      resumo.pct = resumo.total > 0 ? Math.round((resumo.feitos / resumo.total) * 100) : 0
+      map.set(empresaId, resumo)
     }
+
     return map
   }, [])
 

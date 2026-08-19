@@ -6,14 +6,25 @@ export function hojeISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * Instante em que o prazo expira.
+ * Data pura ("2026-08-20", esquema anterior à migração 007) vale até o fim
+ * daquele dia — tratá-la como meia-noite marcaria como vencido tudo que vence
+ * hoje. Timestamp vale na hora exata.
+ */
+export function fimDoPrazo(prazo: string) {
+  const dataPura = /^\d{4}-\d{2}-\d{2}$/.test(prazo.trim())
+  return new Date(dataPura ? `${prazo}T23:59:59` : prazo).getTime()
+}
+
 /** Com SLA em horas o prazo é um instante — vence na hora, não no fim do dia. */
 export function prazoVencido(prazo: string | null, concluido: boolean) {
-  return !!prazo && !concluido && new Date(prazo).getTime() < Date.now()
+  return !!prazo && !concluido && fimDoPrazo(prazo) < Date.now()
 }
 
 /** Horas restantes até o prazo (negativo = atrasado). */
 export function horasAte(prazo: string) {
-  return (new Date(prazo).getTime() - Date.now()) / 3_600_000
+  return (fimDoPrazo(prazo) - Date.now()) / 3_600_000
 }
 
 /**
@@ -32,7 +43,7 @@ const HORA = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.g
 
 /** Chip curto: hoje e amanhã ganham a hora, o resto fica em dd/mm. */
 export function formatPrazo(prazo: string) {
-  const d = new Date(prazo)
+  const d = new Date(fimDoPrazo(prazo))
   const hoje = new Date()
   const amanha = new Date(hoje.getTime() + 86_400_000)
   const mesmoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString()
@@ -43,14 +54,14 @@ export function formatPrazo(prazo: string) {
 
 /** Data e hora por extenso, para tooltip. */
 export function formatPrazoCompleto(prazo: string) {
-  const d = new Date(prazo)
+  const d = new Date(fimDoPrazo(prazo))
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} às ${HORA(d)}`
 }
 
 /** Valor para <input type="datetime-local">, que só aceita hora local sem fuso. */
 export function paraInputDateTime(iso: string | null) {
   if (!iso) return ''
-  const d = new Date(iso)
+  const d = new Date(fimDoPrazo(iso))
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }

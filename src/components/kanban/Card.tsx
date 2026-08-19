@@ -43,6 +43,11 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
   const slaEstourado = slaMaxHoras != null && horasNaColuna != null && horasNaColuna > slaMaxHoras
   const temAtraso = !!checklist?.pendentes.some(p => p.atrasada)
 
+  // A primeira pendente na ordem da árvore é a tarefa da vez: é o que a pessoa
+  // precisa saber sem abrir a ficha.
+  const atual = checklist?.pendentes[0]
+  const completo = !!checklist && checklist.total > 0 && checklist.feitos === checklist.total
+
   return (
     <div
       ref={!overlay ? setNodeRef : undefined}
@@ -118,6 +123,44 @@ export function Card({ empresa, dragId, plataformaId, hasRedFlag, redFlagComment
         )}
 
         <p className="text-[11px] text-text-muted mt-1 font-mono">{formatCNPJ(empresa.cnpj)}</p>
+
+        {/* Andamento da empresa: quanto já foi e o que está na mão agora. */}
+        {checklist && checklist.total > 0 && (
+          <div className="mt-1.5">
+            <div className="flex items-center gap-1.5">
+              <div className="flex-1 h-1.5 bg-black/10 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-[width] duration-300 ${
+                    completo ? 'bg-green-500' : temAtraso ? 'bg-red-500' : 'bg-btn-primary'
+                  }`}
+                  style={{ width: `${checklist.pct}%` }}
+                />
+              </div>
+              <span className={`shrink-0 text-[11px] font-bold tabular-nums ${
+                completo ? 'text-green-600' : temAtraso ? 'text-red-600' : 'text-text-secondary'
+              }`}>
+                {checklist.pct}%
+              </span>
+            </div>
+
+            {atual ? (
+              <p className="mt-1 text-[11px] leading-snug text-text-secondary truncate" title={`${atual.etapa && atual.etapa !== atual.titulo ? atual.etapa + ' → ' : ''}${atual.titulo}`}>
+                <span className={`font-semibold ${atual.atrasada ? 'text-red-600' : 'text-text-primary'}`}>
+                  {atual.atrasada ? 'Atrasada:' : 'Agora:'}
+                </span>{' '}
+                {atual.etapa && atual.etapa !== atual.titulo && (
+                  <span className="text-text-muted">{atual.etapa} › </span>
+                )}
+                {atual.titulo}
+                {checklist.pendentes.length > 1 && (
+                  <span className="text-text-muted"> +{checklist.pendentes.length - 1}</span>
+                )}
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] font-semibold text-green-600">Todas as tarefas concluídas</p>
+            )}
+          </div>
+        )}
 
         {/* A empresa entrou no resultado por um campo que o card não mostra —
             sem dizer qual, ela parece ter aparecido do nada. */}
