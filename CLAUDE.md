@@ -99,6 +99,30 @@ prazo de hoje aparecia como atrasada.
   simples por decisão consciente (login protege a interface, não os dados — igual `credenciais`).
 - `/atrasos` — visão cross-plataforma de tarefas vencidas + cards estourando SLA.
 
+## Erros já cometidos aqui — não repetir
+Registro completo no cofre: `Instruções/Erros do Claude - registro e prevenção.md`.
+O hook `licoes-de-erro.js` injeta a lição do contexto a cada prompt; esta seção é a
+versão para quem lê o repositório.
+
+1. **Clique por coordenada apagou dado real.** Lista com lixeira no hover: o layout
+   deslocou e sumiu um tipo de tarefa do modelo, sem confirmação nem erro. Clicar por
+   texto/atributo via JS e conferir a contagem de registros antes e depois.
+2. **Navegar com edição pendente trava o Supabase inteiro.** O diálogo nativo "Sair do
+   site?" congela todas as abas do domínio e nenhuma ferramenta o dispensa.
+3. **O Run do SQL Editor executa o estado interno, não o texto injetado.** Fazer
+   `setValue` → **F5** → Run, e provar pelo banco — o painel de Results repete o
+   resultado da migração anterior, que parece sucesso.
+4. **Prazo em data pura vence às 23:59, não à meia-noite.** Comparar com o instante
+   atual marcava como atrasada toda tarefa que vence hoje (`fimDoPrazo` resolve).
+5. **Grep no HTML não prova deploy.** Esta é uma SPA: o texto vive no chunk `.js` e o
+   CDN serve a casca. Conferir o chunk referenciado, o DOM montado, ou rota nova em 200.
+6. **`form_input` não sincroniza input controlado do React.** O valor aparece na tela, o
+   estado não muda, e a digitação seguinte vai para o campo errado — já gravou descrição
+   dentro do título. Usar digitação real ou native setter + `dispatchEvent('input')`.
+
+O fio comum: **a tela não é prova.** Confirmar na fonte (banco, artefato, DOM). E o mesmo
+gesto repetido com o mesmo resultado significa hipótese errada, não execução errada.
+
 ## Migrações
 `supabase/*.sql`, rodados à mão no SQL Editor. São idempotentes. A 005 (tarefas aninhadas,
 SLA de coluna, documentos, acessos) e a 006 (campos da tarefa + SLA por tipo no modelo) foram
