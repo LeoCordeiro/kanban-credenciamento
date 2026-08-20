@@ -8,6 +8,11 @@ import { Check, Plus, ChevronRight, ChevronDown, CalendarDays, AlignLeft, BookOp
 /** Profundidade máxima abaixo da empresa: etapa (0) → subtarefa (1) → sub-subtarefa (2). */
 const NIVEL_MAX = 2
 
+/** Caixa do chevron. O espacador do item sem subtarefa usa a MESMA medida: sem
+ *  ele, o `else` vazio puxava checkbox e titulo 22px para a esquerda e a lista
+ *  alternava entre duas colunas. */
+const CAIXA_CHEVRON = 'shrink-0 -ml-1 w-[18px] flex items-center justify-center'
+
 export interface TarefaHandlers {
   filhos: Map<string, Tarefa[]>
   onAlternar: (item: Tarefa) => void
@@ -48,10 +53,12 @@ export function TarefaLinha({ item, nivel, h }: { item: Tarefa; nivel: number; h
     <div>
       <div className="group flex items-center gap-2 px-4 py-2 hover:bg-card-hover transition-colors" style={{ paddingLeft: `${16 + nivel * 20}px` }}>
         {ehPai ? (
-          <button onClick={() => setRecolhido(v => !v)} className="shrink-0 -ml-1 p-0.5 text-text-muted hover:text-text-primary transition-colors" title={recolhido ? 'Expandir' : 'Recolher'}>
+          <button onClick={() => setRecolhido(v => !v)} className={`${CAIXA_CHEVRON} text-text-muted hover:text-text-primary transition-colors`} title={recolhido ? 'Expandir' : 'Recolher'}>
             {recolhido ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
-        ) : null}
+        ) : (
+          <span className={CAIXA_CHEVRON} aria-hidden="true" />
+        )}
 
         <button
           onClick={() => h.onAlternar(item)}
