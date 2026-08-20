@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth'
 import { MessageCircle, Instagram, Megaphone } from 'lucide-react'
 import { ArrowLeft, Upload, FileText, Trash2, Send, ImageIcon, Paperclip, Globe, Mail, Phone, KeyRound, Plus, Eye, EyeOff, ExternalLink, Pencil, Flag, Building2, User, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { Painel, CabecalhoSecao, CopyBtn, Field, INPUT, CAMPO_LABEL, BOTAO_DISCRETO } from '@/components/ui/Painel'
+import { Modal } from '@/components/ui/Modal'
 
 function formatCNPJ(cnpj: string) {
   const d = cnpj.replace(/\D/g, '')
@@ -137,6 +138,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
   const plataformaId = searchParams.get('plataforma')
   const { usuario } = useAuth()
   const zap = useZapPanel()
+  const [verAnexos, setVerAnexos] = useState(false)
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [plataformaNome, setPlataformaNome] = useState<string | null>(null)
   const [anexos, setAnexos] = useState<Anexo[]>([])
@@ -493,6 +495,23 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
               {plataformaNome}
             </span>
           )}
+          {/* Anexos saiu da coluna: vira botao aqui e a ficha ganha o espaco
+              para o que se consulta o tempo todo. */}
+          <button
+            onClick={() => setVerAnexos(true)}
+            title="Anexos da empresa"
+            className="shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:bg-white/10"
+            style={{ color: headerSub }}
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+            Anexos
+            {anexos.length > 0 && (
+              <span className="px-1.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: headerText }}>
+                {anexos.length}
+              </span>
+            )}
+          </button>
+
           {coluna && (
             <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-lg whitespace-nowrap" style={{ backgroundColor: coluna.cor, color: '#fff' }}>
               {coluna.nome}
@@ -740,7 +759,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
 
         {/* ── Coluna B — o que falta e como entrar ───────────────────────── */}
         <div className="flex flex-col gap-3 min-w-0 xl:h-full xl:min-h-0">
-          <Checklist empresaId={id} />
+          <Checklist empresaId={id} credenciais={credenciais} />
 
           <Painel className="xl:flex-1 xl:min-h-0 xl:flex xl:flex-col">
             <CabecalhoSecao
@@ -898,47 +917,44 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
             )}
           </Painel>
 
-          <Painel>
-            <CabecalhoSecao
-              icone={<Paperclip className="w-3.5 h-3.5 text-text-muted" />}
-              titulo="Anexos"
-              contagem={anexos.length > 0 ? <span className="text-xs font-mono text-text-secondary">{anexos.length}</span> : undefined}
-            >
-              <button onClick={() => fileRef.current?.click()} disabled={uploading} className={BOTAO_DISCRETO}>
-                <Upload className="w-3 h-3" /> {uploading ? 'Enviando...' : 'Enviar'}
-              </button>
-              <input ref={fileRef} type="file" onChange={handleUploadAnexo} className="hidden" />
-            </CabecalhoSecao>
-
-            {anexos.length === 0 ? (
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="w-full m-0 py-3 flex items-center justify-center gap-2 text-xs text-text-secondary hover:text-btn-primary hover:bg-card-hover transition-colors"
-              >
-                <Paperclip className="w-3.5 h-3.5" /> Anexar arquivo
-              </button>
-            ) : (
-              <div className="scroll-fino max-h-[26vh] overflow-y-auto divide-y divide-border">
-                {anexos.map(a => (
-                  <div key={a.id} className="group flex items-center gap-2 px-4 py-2.5 hover:bg-card-hover transition-colors">
-                    {a.tipo?.startsWith('image/')
-                      ? <ImageIcon className="w-3.5 h-3.5 text-text-muted shrink-0" />
-                      : <FileText className="w-3.5 h-3.5 text-text-muted shrink-0" />}
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 text-xs text-text-primary hover:text-btn-primary truncate">{a.nome}</a>
-                    {a.tamanho && <span className="text-xs font-mono text-text-secondary shrink-0">{formatBytes(a.tamanho)}</span>}
-                    <button onClick={() => handleDeleteAnexo(a)} title="Excluir" className="opacity-0 group-hover:opacity-100 p-0.5 text-text-secondary hover:text-red-500 transition-all shrink-0">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Painel>
         </div>
       </main>
 
       {zap.alvo && (
         <ZapPanel empresa={zap.alvo.empresa} whatsapp={zap.alvo.whatsapp} onClose={zap.fechar} />
+      )}
+
+      {verAnexos && (
+        <Modal titulo="Anexos" onClose={() => setVerAnexos(false)} maxWidth="max-w-lg">
+          <div className="p-4 border-b border-border shrink-0">
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="w-full py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-btn-primary border-2 border-dashed border-border hover:border-btn-primary hover:bg-card-hover rounded-lg transition-colors disabled:opacity-40"
+            >
+              <Upload className="w-4 h-4" /> {uploading ? 'Enviando...' : 'Anexar arquivo'}
+            </button>
+            <input ref={fileRef} type="file" onChange={handleUploadAnexo} className="hidden" />
+          </div>
+
+          <div className="scroll-fino flex-1 min-h-0 overflow-y-auto divide-y divide-border">
+            {anexos.length === 0 && (
+              <p className="text-sm text-text-secondary px-4 py-6 text-center">Nenhum anexo ainda.</p>
+            )}
+            {anexos.map(a => (
+              <div key={a.id} className="group flex items-center gap-2 px-4 py-2.5 hover:bg-card-hover transition-colors">
+                {a.tipo?.startsWith('image/')
+                  ? <ImageIcon className="w-4 h-4 text-text-muted shrink-0" />
+                  : <FileText className="w-4 h-4 text-text-muted shrink-0" />}
+                <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 text-sm text-text-primary hover:text-btn-primary truncate">{a.nome}</a>
+                {a.tamanho && <span className="text-xs font-mono text-text-secondary shrink-0">{formatBytes(a.tamanho)}</span>}
+                <button onClick={() => handleDeleteAnexo(a)} title="Excluir" className="opacity-0 group-hover:opacity-100 p-1 text-text-secondary hover:text-red-500 transition-all shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </Modal>
       )}
     </div>
   )

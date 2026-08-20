@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { Tarefa, Prioridade, StatusTarefa, PRIORIDADES, STATUS_TAREFA, Documento } from '@/types/kanban'
+import { useState, useEffect } from 'react'
+import { Tarefa, Prioridade, StatusTarefa, PRIORIDADES, STATUS_TAREFA, Documento, Credencial } from '@/types/kanban'
 import { prazoVencido, formatPrazoCompleto, paraInputDateTime, formatHoras } from '@/lib/tarefas'
 import { Modal } from '@/components/ui/Modal'
+import { supabase } from '@/lib/supabase'
 import { CAMPO_LABEL, INPUT } from '@/components/ui/Painel'
-import { CalendarDays, UserRound, Flag, Trash2, CornerDownRight, BookOpen, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { CalendarDays, UserRound, Flag, Trash2, CornerDownRight, BookOpen, ChevronDown, ChevronRight, ExternalLink, KeyRound, Check } from 'lucide-react'
 
 /** Documentação vinculada: título sempre visível, conteúdo sob demanda. */
 function DocumentoAcordeao({ doc }: { doc: Documento }) {
@@ -51,12 +52,14 @@ export interface PatchTarefa {
 }
 
 /** Painel de detalhe da tarefa — onde todos os campos são editados de uma vez. */
-export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemover, onClose }: {
+export function TarefaModal({ tarefa, caminho, ehPai, usuarios, credenciais, onSalvar, onRemover, onClose }: {
   tarefa: Tarefa
   /** Trilha até a tarefa: ["Criar Site", "Contratar hospedagem"]. */
   caminho: string[]
   ehPai: boolean
   usuarios: string[]
+  /** Credenciais desta empresa — o vínculo é entre coisas da mesma empresa. */
+  credenciais: Credencial[]
   onSalvar: (patch: PatchTarefa) => Promise<void>
   onRemover: () => void
   onClose: () => void
@@ -70,6 +73,12 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
     responsavel: tarefa.responsavel ?? '',
   })
   const [salvando, setSalvando] = useState(false)
+  const [credsSel, setCredsSel] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    supabase.from('checklist_item_credencial').select('credencial_id').eq('item_id', tarefa.id)
+      .then(({ data }) => setCredsSel(new Set((data ?? []).map((x: { credencial_id: string }) => x.credencial_id))))
+  }, [tarefa.id])
 
   // O input datetime-local devolve hora local sem fuso; new Date() a interpreta
   // como local, que é o que o usuário quis dizer ao digitar.
@@ -82,6 +91,13 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
     e.preventDefault()
     if (!form.titulo.trim()) return
     setSalvando(true)
+    // Apaga e regrava: são poucas linhas e evita diff manual.
+    await supabase.from('checklist_item_credencial').delete().eq('item_id', tarefa.id)
+    if (credsSel.size > 0) {
+      await supabase.from('checklist_item_credencial')
+        .insert([...credsSel].map(credencial_id => ({ item_id: tarefa.id, credencial_id })))
+    }
+
     await onSalvar({
       titulo: form.titulo.trim(),
       descricao: form.descricao.trim() || null,
@@ -212,6 +228,44 @@ export function TarefaModal({ tarefa, caminho, ehPai, usuarios, onSalvar, onRemo
               {usuarios.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
+        </div>
+
+        {/* Credencial da empresa usada nesta tarefa: quem abre "Criar E-mail"
+            vê aqui qual login usar, sem procurar na seção Credenciais. */}
+        <div>
+          <label className={CAMPO_LABEL}>
+            <KeyRound className="inline w-3 h-3 mb-0.5" /> Credenciais desta tarefa
+            {credsSel.size > 0 && <span className="ml-1 text-btn-primary font-semibold">{credsSel.size} vinculada{credsSel.size > 1 ? 's' : ''}</span>}
+          </label>
+          {credenciais.length === 0 ? (
+            <p className="text-sm text-text-secondary">
+              Esta empresa ainda não tem credencial cadastrada.
+            </p>
+          ) : (
+            <div className="scroll-fino max-h-32 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+              {credenciais.map(c => {
+                const marcada = credsSel.has(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCredsSel(prev => {
+                      const n = new Set(prev)
+                      n.has(c.id) ? n.delete(c.id) : n.add(c.id)
+                      return n
+                    })}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${marcada ? 'bg-btn-primary/5' : 'hover:bg-card-hover'}`}
+                  >
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${marcada ? 'bg-btn-primary border-btn-primary text-white' : 'border-text-muted/50'}`}>
+                      {marcada && <Check className="w-3 h-3" strokeWidth={3} />}
+                    </span>
+                    <span className="flex-1 min-w-0 truncate text-sm text-text-primary">{c.titulo}</span>
+                    {c.usuario && <span className="shrink-0 text-xs font-mono text-text-secondary truncate max-w-[45%]">{c.usuario}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {tarefa.concluido && tarefa.concluido_por && (

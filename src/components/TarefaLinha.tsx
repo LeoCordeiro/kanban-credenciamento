@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Tarefa, PRIORIDADES, STATUS_TAREFA } from '@/types/kanban'
+import { Tarefa, PRIORIDADES, STATUS_TAREFA, StatusTarefa } from '@/types/kanban'
 import { folhasDe, estadoEfetivo, statusEfetivo, prazoVencido, formatPrazo, formatPrazoCompleto } from '@/lib/tarefas'
-import { Check, Plus, ChevronRight, ChevronDown, CalendarDays, AlignLeft, BookOpen } from 'lucide-react'
+import { Check, Plus, ChevronRight, ChevronDown, CalendarDays, AlignLeft, BookOpen, KeyRound } from 'lucide-react'
 
 /** Profundidade máxima abaixo da empresa: etapa (0) → subtarefa (1) → sub-subtarefa (2). */
 const NIVEL_MAX = 2
@@ -15,14 +15,25 @@ const CAIXA_CHEVRON = 'shrink-0 -ml-1 w-[18px] flex items-center justify-center'
 
 export interface TarefaHandlers {
   filhos: Map<string, Tarefa[]>
+  /** item_id -> nº de credenciais vinculadas. */
+  credsPorItem: Map<string, number>
   onAlternar: (item: Tarefa) => void
+  onStatus: (item: Tarefa, status: StatusTarefa) => void
   onAddSub: (parentId: string, titulo: string) => Promise<void>
   onAbrir: (item: Tarefa) => void
 }
 
 export function TarefaLinha({ item, nivel, h }: { item: Tarefa; nivel: number; h: TarefaHandlers }) {
-  const [recolhido, setRecolhido] = useState(false)
+  const filhosIniciais = h.filhos.get(item.id) ?? []
+  /* Abre só o que está em curso. Subtarefa que ninguém começou e subtarefa já
+     concluída ficam recolhidas — o que precisa de atenção fica à vista sem
+     empurrar o resto da lista para fora da tela. Bloqueado conta como em curso:
+     está travado, não parado por escolha. */
+  const [recolhido, setRecolhido] = useState(
+    filhosIniciais.length > 0 && !filhosIniciais.some(f => f.status === 'fazendo' || f.status === 'bloqueado'),
+  )
   const [addindo, setAddindo] = useState(false)
+  const [menuStatus, setMenuStatus] = useState(false)
   const [subTitulo, setSubTitulo] = useState('')
 
   const filhosDiretos = h.filhos.get(item.id) ?? []
@@ -36,7 +47,6 @@ export function TarefaLinha({ item, nivel, h }: { item: Tarefa; nivel: number; h
   const prio = PRIORIDADES.find(p => p.id === item.prioridade)
   const st = STATUS_TAREFA.find(s => s.id === status)
   // "A fazer" e "Concluído" já se leem no checkbox — só os estados do meio viram chip.
-  const mostraStatus = status === 'fazendo' || status === 'bloqueado'
   const mostraPrio = !concluido && (item.prioridade === 'alta' || item.prioridade === 'urgente')
 
   async function submitSub(e: React.FormEvent) {
@@ -95,15 +105,50 @@ export function TarefaLinha({ item, nivel, h }: { item: Tarefa; nivel: number; h
           <BookOpen className="w-3 h-3 text-btn-primary shrink-0" aria-label="Tem documentação vinculada" />
         )}
 
+        {(h.credsPorItem.get(item.id) ?? 0) > 0 && (
+          <KeyRound
+            className="w-3 h-3 text-amber-600 shrink-0"
+            aria-label={`${h.credsPorItem.get(item.id)} credencial(is) vinculada(s)`}
+          />
+        )}
+
         {ehPai && (
           <span className={`shrink-0 text-xs font-mono ${concluido ? 'text-green-600' : 'text-text-secondary'}`}>
             {feitas}/{folhas!.length}
           </span>
         )}
 
-        {mostraStatus && st && (
-          <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${st.chip}`}>{st.nome}</span>
-        )}
+        {/* Chip sempre com o texto do status: a bolinha só no hover escondia a
+            informação justamente de quem ainda não foi mexido. */}
+        <div className="relative shrink-0">
+            <button
+              onClick={() => setMenuStatus(v => !v)}
+              title={`Status: ${st?.nome ?? 'A fazer'} — clique para mudar`}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap hover:brightness-95 ${st?.chip ?? 'bg-gray-100 text-gray-600'}`}
+            >
+              {st?.nome ?? 'A fazer'}
+            </button>
+
+            {menuStatus && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMenuStatus(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 w-40 bg-white rounded-lg shadow-xl border border-border py-1">
+                  {STATUS_TAREFA.map(o => (
+                    <button
+                      key={o.id}
+                      onClick={() => { setMenuStatus(false); h.onStatus(item, o.id) }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-card-hover transition-colors ${
+                        o.id === (status ?? 'a_fazer') ? 'font-semibold text-text-primary' : 'text-text-secondary'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: o.cor }} />
+                      {o.nome}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+        </div>
 
         {mostraPrio && prio && (
           <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${prio.chip}`} title={`Prioridade ${prio.nome}`}>

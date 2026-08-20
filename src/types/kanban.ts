@@ -77,7 +77,7 @@ export const PRIORIDADES: { id: Prioridade; nome: string; cor: string; chip: str
 
 export const STATUS_TAREFA: { id: StatusTarefa; nome: string; cor: string; chip: string }[] = [
   { id: 'a_fazer', nome: 'A fazer', cor: '#97a0af', chip: 'bg-gray-100 text-gray-600' },
-  { id: 'fazendo', nome: 'Fazendo', cor: '#0079bf', chip: 'bg-blue-100 text-blue-700' },
+  { id: 'fazendo', nome: 'Em andamento', cor: '#0079bf', chip: 'bg-blue-100 text-blue-700' },
   { id: 'bloqueado', nome: 'Bloqueado', cor: '#dc2626', chip: 'bg-red-100 text-red-700' },
   { id: 'concluido', nome: 'Concluído', cor: '#16a34a', chip: 'bg-green-100 text-green-700' },
 ]
@@ -120,6 +120,8 @@ export interface ChecklistModeloItem {
   sla_horas: number | null
   /** Como executar a tarefa. Fica no tipo, vale para todas as empresas. */
   instrucoes: string | null
+  /** Quem costuma fazer. A tarefa nasce no nome dessa pessoa em toda empresa. */
+  responsavel: string | null
   prioridade: Prioridade
   created_at: string
   /** Tipo de subtarefa: aponta para o tipo de tarefa que a contém. */

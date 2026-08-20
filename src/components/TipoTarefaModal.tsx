@@ -6,25 +6,27 @@ import { ChecklistModeloItem, Prioridade, PRIORIDADES, Documento, Plataforma } f
 import { formatHoras } from '@/lib/tarefas'
 import { Modal } from '@/components/ui/Modal'
 import { CAMPO_LABEL, INPUT } from '@/components/ui/Painel'
-import { Timer, Flag, Trash2, Info, BookOpen, LayoutGrid, Check, ExternalLink, CornerDownRight } from 'lucide-react'
+import { Timer, Flag, Trash2, Info, BookOpen, LayoutGrid, Check, ExternalLink, CornerDownRight, UserRound } from 'lucide-react'
 
 export interface PatchTipo {
   titulo?: string
   instrucoes?: string | null
   prioridade?: Prioridade
   sla_horas?: number | null
+  responsavel?: string | null
 }
 
 /**
  * Editor do TIPO de tarefa. O que se define aqui vale para todas as empresas —
  * instruções, documentação de consulta e em quais quadros a tarefa existe.
  */
-export function TipoTarefaModal({ tipo, pai, documentos, plataformas, onSalvar, onRemover, onClose }: {
+export function TipoTarefaModal({ tipo, pai, documentos, plataformas, usuarios, onSalvar, onRemover, onClose }: {
   tipo: ChecklistModeloItem
   /** Preenchido quando este tipo é uma subtarefa. */
   pai?: ChecklistModeloItem
   documentos: Documento[]
   plataformas: Plataforma[]
+  usuarios: string[]
   onSalvar: (patch: PatchTipo) => Promise<void>
   onRemover: () => void
   onClose: () => void
@@ -34,6 +36,7 @@ export function TipoTarefaModal({ tipo, pai, documentos, plataformas, onSalvar, 
     instrucoes: tipo.instrucoes ?? '',
     prioridade: tipo.prioridade,
     sla_horas: tipo.sla_horas != null ? String(tipo.sla_horas) : '',
+    responsavel: tipo.responsavel ?? '',
   })
   const [docsSel, setDocsSel] = useState<Set<string>>(new Set())
   const [platsSel, setPlatsSel] = useState<Set<string>>(new Set())
@@ -68,6 +71,7 @@ export function TipoTarefaModal({ tipo, pai, documentos, plataformas, onSalvar, 
       instrucoes: form.instrucoes.trim() || null,
       prioridade: form.prioridade,
       sla_horas: horas > 0 ? horas : null,
+      responsavel: form.responsavel || null,
     })
 
     // Apaga e regrava os vínculos: são poucas linhas e evita diff manual.
@@ -239,6 +243,23 @@ export function TipoTarefaModal({ tipo, pai, documentos, plataformas, onSalvar, 
               {PRIORIDADES.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className={CAMPO_LABEL}><UserRound className="inline w-3 h-3 mb-0.5" /> Responsável padrão</label>
+          <select
+            value={form.responsavel}
+            onChange={e => setForm(p => ({ ...p, responsavel: e.target.value }))}
+            className={INPUT}
+          >
+            <option value="">Sem responsável definido</option>
+            {usuarios.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <p className="mt-0.5 text-xs text-text-muted">
+            {form.responsavel
+              ? `Empresa nova nasce com esta tarefa no nome de ${form.responsavel}.`
+              : 'A tarefa nasce sem dono; dá para atribuir depois em cada empresa.'}
+          </p>
         </div>
       </form>
 

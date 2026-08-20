@@ -3,18 +3,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
-import { Tarefa, Usuario } from '@/types/kanban'
+import { Tarefa, Usuario, Credencial } from '@/types/kanban'
 import { montarArvore, folhasDe, estadoEfetivo, idsComDescendentes, caminhoAte } from '@/lib/tarefas'
 import { TarefaLinha, TarefaHandlers } from '@/components/TarefaLinha'
 import { TarefaModal, PatchTarefa } from '@/components/TarefaModal'
 import { Plus, ListChecks } from 'lucide-react'
 
-export function Checklist({ empresaId }: { empresaId: string }) {
+export function Checklist({ empresaId, credenciais = [] }: { empresaId: string; credenciais?: Credencial[] }) {
   const { usuario } = useAuth()
   const [itens, setItens] = useState<Tarefa[]>([])
   const [usuarios, setUsuarios] = useState<string[]>([])
   const [novo, setNovo] = useState('')
   const [abertaId, setAbertaId] = useState<string | null>(null)
+  /** item_id -> quantas credenciais vinculadas. Só para o indicador na linha. */
+  const [credsPorItem, setCredsPorItem] = useState<Map<string, number>>(new Map())
 
   const carregar = useCallback(async () => {
     // As instruções vêm do tipo (join), não copiadas: corrigir o texto em
@@ -47,6 +49,15 @@ export function Checklist({ empresaId }: { empresaId: string }) {
     supabase.rpc('listar_usuarios').then(({ data }) => {
       if (data) setUsuarios((data as Usuario[]).filter(u => u.ativo !== false).map(u => u.nome))
     })
+
+    supabase.from('checklist_item_credencial')
+      .select('item_id, checklist_itens!inner(empresa_id)')
+      .eq('checklist_itens.empresa_id', empresaId)
+      .then(({ data }) => {
+        const m = new Map<string, number>()
+        ;(data ?? []).forEach((x: { item_id: string }) => m.set(x.item_id, (m.get(x.item_id) ?? 0) + 1))
+        setCredsPorItem(m)
+      })
 
     const ch = supabase.channel(`checklist-${empresaId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens', filter: `empresa_id=eq.${empresaId}` }, () => carregar())
@@ -153,7 +164,11 @@ export function Checklist({ empresaId }: { empresaId: string }) {
 
   const handlers: TarefaHandlers = {
     filhos,
+    credsPorItem,
     onAlternar: alternar,
+    // Reusa salvarTarefa: ela ja alinha concluido_em/por e deixa a trigger
+    // sync_status_concluido cuidar do campo `concluido`.
+    onStatus: (item, status) => { salvarTarefa(item, { status }) },
     onAddSub: addSub,
     onAbrir: t => setAbertaId(t.id),
   }
@@ -161,7 +176,7 @@ export function Checklist({ empresaId }: { empresaId: string }) {
   const aberta = abertaId ? itens.find(i => i.id === abertaId) : undefined
 
   return (
-    <section className="bg-white border border-border rounded-xl shadow-sm overflow-hidden shrink-0">
+    <section className="bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col xl:flex-[2] xl:min-h-0">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-transparent">
         <ListChecks className="w-3.5 h-3.5 text-text-muted" />
         <h2 className="text-base font-semibold text-text-primary">Tarefas</h2>
@@ -194,7 +209,7 @@ export function Checklist({ empresaId }: { empresaId: string }) {
 
       {/* Teto para a lista não empurrar a coluna inteira quando a empresa
           acumula muitas tarefas — a lista rola em si mesma. */}
-      <div className="scroll-fino max-h-[40vh] overflow-y-auto divide-y divide-border">
+      <div className="scroll-fino max-h-[55vh] xl:max-h-none xl:flex-1 xl:min-h-0 overflow-y-auto divide-y divide-border">
         {raizes.map(item => (
           <TarefaLinha key={item.id} item={item} nivel={0} h={handlers} />
         ))}
@@ -223,6 +238,7 @@ export function Checklist({ empresaId }: { empresaId: string }) {
           caminho={caminhoAte(aberta, itens)}
           ehPai={(filhos.get(aberta.id) ?? []).length > 0}
           usuarios={usuarios}
+          credenciais={credenciais}
           onSalvar={patch => salvarTarefa(aberta, patch)}
           onRemover={() => remover(aberta)}
           onClose={() => setAbertaId(null)}

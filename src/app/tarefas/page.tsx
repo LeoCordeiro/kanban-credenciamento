@@ -100,6 +100,7 @@ export default function TarefasModeloPage() {
   const [itens, setItens] = useState<ChecklistModeloItem[]>([])
   const [documentos, setDocumentos] = useState<Documento[]>([])
   const [plataformas, setPlataformas] = useState<Plataforma[]>([])
+  const [usuarios, setUsuarios] = useState<string[]>([])
   const [carregando, setCarregando] = useState(true)
   const [novo, setNovo] = useState('')
   const [erro, setErro] = useState<string | null>(null)
@@ -145,6 +146,9 @@ export default function TarefasModeloPage() {
     carregar()
     supabase.from('documentos').select('*').order('categoria').order('titulo').then(({ data }) => { if (data) setDocumentos(data) })
     supabase.from('plataformas').select('*').order('ordem').order('created_at').then(({ data }) => { if (data) setPlataformas(data) })
+    supabase.rpc('listar_usuarios').then(({ data }) => {
+      if (data) setUsuarios((data as { nome: string; ativo?: boolean }[]).filter(u => u.ativo !== false).map(u => u.nome))
+    })
   }, [carregar])
 
   // Árvore de dois níveis: tarefa e suas subtarefas.
@@ -390,6 +394,7 @@ export default function TarefasModeloPage() {
           pai={paiDoAberto}
           documentos={documentos}
           plataformas={plataformas}
+          usuarios={usuarios}
           onSalvar={patch => atualizar(aberto.id, patch)}
           onRemover={() => remover(aberto.id)}
           onClose={() => { setAbertoId(null); carregar() }}
