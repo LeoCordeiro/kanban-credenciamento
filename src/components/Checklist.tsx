@@ -176,7 +176,7 @@ export function Checklist({ empresaId, credenciais = [] }: { empresaId: string; 
   const aberta = abertaId ? itens.find(i => i.id === abertaId) : undefined
 
   return (
-    <section className="bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col xl:flex-[2] xl:min-h-0">
+    <section className="bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col xl:flex-1 xl:min-h-0">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-transparent">
         <ListChecks className="w-3.5 h-3.5 text-text-muted" />
         <h2 className="text-base font-semibold text-text-primary">Tarefas</h2>

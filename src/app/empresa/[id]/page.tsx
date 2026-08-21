@@ -524,7 +524,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
           copia o dia inteiro) leva a coluna larga; operação e histórico ficam ao lado. */}
       <main
         data-detalhe-root
-        className="grid items-start gap-3 px-4 py-3 grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)_minmax(0,1.1fr)] xl:h-[calc(100vh-3.25rem)] xl:items-stretch xl:overflow-hidden"
+        className="grid items-start gap-3 px-4 py-3 grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)_minmax(0,1.1fr)] xl:h-[max(calc(100vh-3.25rem),48rem)] xl:items-stretch xl:overflow-hidden"
       >
         {/* ── Coluna A — ficha cadastral ─────────────────────────────────── */}
         <Painel className="lg:col-span-2 xl:col-span-1 xl:h-full xl:overflow-y-auto scroll-fino">
@@ -761,7 +761,7 @@ export default function EmpresaPage({ params }: { params: Promise<{ id: string }
         <div className="flex flex-col gap-3 min-w-0 xl:h-full xl:min-h-0">
           <Checklist empresaId={id} credenciais={credenciais} />
 
-          <Painel className="xl:flex-1 xl:min-h-0 xl:flex xl:flex-col">
+          <Painel className="xl:flex-none xl:max-h-[38%] xl:min-h-0 xl:flex xl:flex-col">
             <CabecalhoSecao
               icone={<KeyRound className="w-3.5 h-3.5 text-text-muted" />}
               titulo="Credenciais"
